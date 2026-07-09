@@ -1,10 +1,9 @@
 from __future__ import annotations
 from dotenv import load_dotenv
-from sqlalchemy import create_engine,select
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from Project.backend.Schema.UserModels import User as db_User 
-from Project.backend.Schema.UserModels import OTP as dbOTP 
-from Project.backend.Models.UserModel import User
+from Schema.UserModels import User as db_User 
+from Models.UserModel import User
 engine = create_engine("postgresql+psycopg://reyan:1234@localhost:5432/mydb", echo=True)
 
 class UserCrud:

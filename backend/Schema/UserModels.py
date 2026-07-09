@@ -3,7 +3,7 @@ from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from Schema.Enums import Roles
-from sqlalchemy import enum as sa_enum
+from sqlalchemy import Enum as sa_enum
 
 class Base (DeclarativeBase):
     pass

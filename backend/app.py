@@ -1,5 +1,5 @@
 from Router.Auth import router
-from fastapi import FastAPI, Depends, APIRouter,BackgroundTasks,Request
+from fastapi import FastAPI
 
 app = FastAPI()
 

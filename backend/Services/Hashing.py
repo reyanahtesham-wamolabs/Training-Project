@@ -1,6 +1,6 @@
 import bcrypt
 
-def hashPassword(plainPassword):            
+def hash_password(plainPassword):            
     salt = bcrypt.gensalt()
     hashed_bytes = bcrypt.hashpw(plainPassword.encode("utf-8"), salt)
     print(plainPassword)        
