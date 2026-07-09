@@ -1,4 +1,4 @@
-from pydantic import BaseModel,field_validator,Field
+from pydantic import  EmailStr, BaseModel,field_validator,Field
 import uuid
 from Services.Hashing import hash_password
 from Schema.Enums import Roles
@@ -11,8 +11,8 @@ class User(BaseModel):
     
 
 class CreateUser(BaseModel):
-    email:str
-    password:str=Field(pattern=r"[A-Za-z0-9_]{3,20}")
+    email:EmailStr
+    password:str=Field(pattern=r"^[A-Za-z0-9_]{3,20}$")
     name:str
     role:Roles
     @field_validator("email")

@@ -1,18 +1,17 @@
 from fastapi import APIRouter
 from Models.UserModel import User,CreateUser,UserLogin
 from Repository.UserCRUD import UserCrud
+from Services.UserServices import UserAuthenticationServces
 router=APIRouter()
 
 
 @router.post("/SignupUser/")
 def Signup(userData:CreateUser):
-    userCompleteData=User(name=userData.name,role=userData.role,password=userData.password,email=userData.email)
-    UserCrud.add_user(userCompleteData)    
+    userCompleteData=UserAuthenticationServces.user_signup(userData)
     return userCompleteData
 
 @router.post("/Login/")
 def Login(userData:UserLogin):
-    if not UserCrud.user_login(userData) == "User Not Found":
-        return userData
-    return ""
+    data=UserAuthenticationServces.user_login(userData)
+    return data
 
