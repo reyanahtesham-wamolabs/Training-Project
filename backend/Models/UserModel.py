@@ -24,7 +24,17 @@ class CreateUser(BaseModel):
     
     @field_validator("password",mode="after")
     @classmethod
-    def passwordHashing(cls,value):
+    def password_hashing(cls,value):
         hashedPassword=hash_password(value)  
         return hashedPassword
 
+
+class UserLogin(BaseModel):
+    email:str
+    password:str 
+
+    @field_validator("password",mode="after")
+    @classmethod
+    def password_hashing(cls,value):
+        hashedPassword=hash_password(value)  
+        return hashedPassword

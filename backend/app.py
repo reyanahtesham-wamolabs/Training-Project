@@ -1,4 +1,4 @@
-from Router.Auth import router
+from Router.Authentication import router
 from fastapi import FastAPI
 
 app = FastAPI()
