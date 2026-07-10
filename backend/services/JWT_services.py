@@ -42,6 +42,7 @@ class TokenFunctionality:
             "exp": expire_time
         }
         token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-        await tokenCRUD.add_token(token, email, expire_time, session)
+        flag = await tokenCRUD.token_exists(email, session)
+        if not flag:
+            await tokenCRUD.add_token(token, email, expire_time, session)
         return token
-    

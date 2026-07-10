@@ -22,13 +22,17 @@ class UserCrud:
     @staticmethod
     async def user_login(data: UserLogin, session: AsyncSession):
         try:
-            stmt = select(db_User).where(db_User.email == data.email,check_password(data.password,db_User.password),)
+            stmt = select(db_User).where(db_User.email == data.email)
             result = await session.execute(stmt)
             usersObj = result.scalar_one_or_none()
             if usersObj is None:
                 raise HTTPException(
-                       status_code=404, detail="User not found"
-    )
+                    status_code=404, detail="User not found"
+                )
+            if not check_password(data.password, usersObj.password):
+                raise HTTPException(
+                    status_code=401, detail="Invalid credentials"
+                )
             return usersObj
         except SQLAlchemyError:
             raise

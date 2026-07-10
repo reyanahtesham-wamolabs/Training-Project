@@ -21,12 +21,22 @@ class tokenCRUD:
         try:
             stmt = select(RefreshToken).where(
                 RefreshToken.email == user_email,
-                RefreshToken.token == JWT_token
-            )
-            result = await session.scalars(stmt)
-            tokenObj = result.first()
+                RefreshToken.token == JWT_token)
+            tokenObj = await session.scalar_one_or_none(stmt)
             if tokenObj is None:
-                raise ValueError("token not found")
-            return tokenObj
+                return False
         except SQLAlchemyError:
             raise
+    
+    @staticmethod
+    async def token_exists(user_email, session: AsyncSession):
+        try:
+            stmt = select(RefreshToken).where(
+                RefreshToken.email == user_email)
+            tokenObj = await session.scalar_one_or_none(stmt)
+            if tokenObj is None:
+                return False
+            return True
+        except SQLAlchemyError:
+            raise
+    
