@@ -33,7 +33,8 @@ class tokenCRUD:
         try:
             stmt = select(RefreshToken).where(
                 RefreshToken.email == user_email)
-            tokenObj = await session.scalar_one_or_none(stmt)
+            result = await session.execute(stmt)
+            tokenObj = result.scalar_one_or_none()
             if tokenObj is None:
                 return False
             return True
