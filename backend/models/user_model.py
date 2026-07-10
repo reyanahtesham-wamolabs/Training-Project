@@ -7,7 +7,7 @@ class User(BaseModel):
     email: str 
     password:str
     role:Roles
-    ID: str = Field(default_factory=lambda: str(uuid.uuid4()))    
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
     
 
 class CreateUser(BaseModel):

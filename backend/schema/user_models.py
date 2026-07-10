@@ -9,11 +9,11 @@ from .baseclass import Base
 
 class User(Base):
     __tablename__ = "User"
-    ID:Mapped[str] = mapped_column(primary_key=True)
+    id:Mapped[str] = mapped_column(primary_key=True)
     name:Mapped[str]
     role:Mapped[Roles] = mapped_column(sa_enum(Roles))
     active:Mapped[bool]
     email:Mapped[str] = mapped_column(unique=True,nullable=False)
     password:Mapped[str]
     privacyLevel:Mapped[str]
-    SoftDelete:Mapped[bool]
+    soft_delete:Mapped[bool]

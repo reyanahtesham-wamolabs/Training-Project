@@ -9,7 +9,7 @@ from fastapi import HTTPException
 class UserCrud:
     @staticmethod
     async def add_user(data: User, session: AsyncSession):
-        User1 = db_User(ID=data.ID,password=data.password,role=data.role,name=data.name,active=True,email=data.email,privacyLevel="High",SoftDelete=False)
+        User1 = db_User(id=data.id,password=data.password,role=data.role,name=data.name,active=True,email=data.email,privacyLevel="High",soft_delete=False)
         try:
             session.add(User1)
             await session.commit()

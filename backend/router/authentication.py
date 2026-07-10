@@ -8,13 +8,13 @@ from database import get_db
 router = APIRouter()
 
 @router.post("/SignupUser/")
-async def signup(userData: CreateUser, session: AsyncSession = Depends(get_db)):
-    userCompleteData = await UserAuthenticationServices.user_signup(userData, session)
+async def signup(user_data: CreateUser, session: AsyncSession = Depends(get_db)):
+    userCompleteData = await UserAuthenticationServices.user_signup(user_data, session)
     return userCompleteData
 
 @router.post("/Login/")
-async def login(userData: UserLogin, session: AsyncSession = Depends(get_db)):
-    data = await UserAuthenticationServices.user_login(userData, session)
+async def login(user_data: UserLogin, session: AsyncSession = Depends(get_db)):
+    data = await UserAuthenticationServices.user_login(user_data, session)
     return data
 
 
