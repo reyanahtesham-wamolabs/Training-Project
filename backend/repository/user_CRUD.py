@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from schema.user_models import User as db_User 
 from models.user_model import User,UserLogin
 from fastapi import HTTPException
-
+from helper_functions.hashing import check_password
 class UserCrud:
     @staticmethod
     async def add_user(data: User, session: AsyncSession):
@@ -22,7 +22,7 @@ class UserCrud:
     @staticmethod
     async def user_login(data: UserLogin, session: AsyncSession):
         try:
-            stmt = select(db_User).where(db_User.email == data.email,db_User.password == data.password)
+            stmt = select(db_User).where(db_User.email == data.email,check_password(data.password,db_User.password),)
             result = await session.execute(stmt)
             usersObj = result.scalar_one_or_none()
             if usersObj is None:
@@ -32,6 +32,3 @@ class UserCrud:
             return usersObj
         except SQLAlchemyError:
             raise
-
-
-

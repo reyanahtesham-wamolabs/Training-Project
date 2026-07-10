@@ -29,9 +29,9 @@ class TokenFunctionality:
             )
             return payload
         except jwt.ExpiredSignatureError:
-            raise jwt.ExpiredSignatureError
+            raise
         except jwt.InvalidTokenError:
-            raise jwt.InvalidTokenError
+            raise
 
     async def create_refresh_token(email: str, session) -> str:
         expire_time=datetime.now(UTC) + timedelta(days=int(REFRESH_TOKEN_EXPIRE_DAYS))

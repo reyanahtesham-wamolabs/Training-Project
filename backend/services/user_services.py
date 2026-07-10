@@ -22,7 +22,6 @@ class UserAuthenticationServices:
 }
 
     async def user_login(user_data:UserLogin,session):
-        user_data.password=hash_password(user_data.password)
         await UserCrud.user_login(user_data, session)
         access_token = TokenFunctionality.create_access_token(user_data.email)
         refresh_token = await TokenFunctionality.create_refresh_token(user_data.email,session)
