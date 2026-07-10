@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends,status
 from sqlalchemy.ext.asyncio import AsyncSession
-from Models.UserModel import User,CreateUser,UserLogin
-from Repository.UserCRUD import UserCrud
+from models.user_model import User,CreateUser,UserLogin
+from repository.user_CRUD import UserCrud
 from services.user_services import UserAuthenticationServices
-from Project.backend.database import get_db
+from database import get_db
 
 router = APIRouter()
 
-@router.post("/SignupUser/")
+@router.post("/SignupUser/", status_code=status.HTTP_201_CREATED)
 async def signup(userData: CreateUser, session: AsyncSession = Depends(get_db)):
     userCompleteData = await UserAuthenticationServices.user_signup(userData, session)
     return userCompleteData

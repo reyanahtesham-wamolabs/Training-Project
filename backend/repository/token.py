@@ -30,5 +30,3 @@ class tokenCRUD:
             return tokenObj
         except SQLAlchemyError:
             raise
-        except SQLAlchemyError:
-            raise

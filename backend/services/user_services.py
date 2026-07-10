@@ -9,15 +9,15 @@ class UserAuthenticationServices:
     async def user_signup(user_data:CreateUser,session):
         user_data.password=hash_password(user_data.password)
         user_complete_data=User(name=user_data.name,role=user_data.role,password=user_data.password,email=user_data.email)
-        await UserCrud.add_user(user_complete_data,session)    
+        created_user = await UserCrud.add_user(user_complete_data, session)
         return {
     "status_code": status.HTTP_201_CREATED,
     "message": "User created successfully.",
     "data": {
-        "id": user_complete_data.ID,
-        "name": user_complete_data.name,
-        "email": user_complete_data.email,
-        "role": user_complete_data.role,
+        "id": created_user.ID,
+        "name": created_user.name,
+        "email": created_user.email,
+        "role": created_user.role,
     },
 }
 
