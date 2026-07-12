@@ -33,6 +33,41 @@ class TokenFunctionality:
         except jwt.InvalidTokenError:
             raise
 
+    async def ensure_valid_access_token(access_token: str, session) -> dict:
+        """
+        - {"status": "valid", "payload": <payload>} when access token is valid
+        - {"status": "refreshed", "access_token": <new_token>} when a new access token was issued
+        - {"status": "login_required"} when token expired and no valid refresh token exists
+        """
+        try:
+            payload = TokenFunctionality.decode_token(access_token)
+            return {"status": "valid", "payload": payload}
+        except jwt.ExpiredSignatureError:
+            # decode without verifying expiration to extract subject
+            try:
+                payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+            except jwt.InvalidTokenError:
+                # signature invalid
+                raise
+
+            user_email = payload.get("sub")
+            if not user_email:
+                return {"status": "login_required"}
+
+            # check if a refresh token exists for this user
+            try:
+                has_refresh = await tokenCRUD.token_exists(user_email, session)
+            except Exception:
+                # on DB errors, conservatively require login
+                return {"status": "login_required"}
+
+            if has_refresh:
+                # issue a new access token
+                new_access = TokenFunctionality.create_access_token(user_email)
+                return {"status": "refreshed", "access_token": new_access}
+            else:
+                return {"status": "login_required"}
+
     async def create_refresh_token(email: str, session) -> str:
         expire_time=datetime.now(UTC) + timedelta(days=int(REFRESH_TOKEN_EXPIRE_DAYS))
         expire_time = expire_time.replace(tzinfo=None)
