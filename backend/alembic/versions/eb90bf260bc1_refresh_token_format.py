@@ -47,9 +47,11 @@ def upgrade() -> None:
     op.create_primary_key('RefreshToken_pkey', 'RefreshToken', ['id'])
     op.alter_column('RefreshToken', 'id', nullable=False)
 
-
 def downgrade() -> None:
     """Downgrade schema."""
+    # Replace the primary key on id with the original email primary key.
     op.drop_constraint('RefreshToken_pkey', 'RefreshToken', type_='primary')
     op.create_primary_key('RefreshToken_pkey', 'RefreshToken', ['email'])
+
+    # Remove the UUID id column.
     op.drop_column('RefreshToken', 'id')
