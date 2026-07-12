@@ -17,10 +17,11 @@ async def get_current_user(
     """
     Validates the access token and returns the current authenticated user.
     If token is expired, attempts to refresh using stored refresh token.
-    Raises HTTPException if token is invalid or login is required.
+    Raises HTTPException if token is invalid or login is requi red.
     """
     try:
         token_result = await TokenFunctionality.ensure_valid_access_token(token, session)
+    
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
