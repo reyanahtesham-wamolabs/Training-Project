@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from dependencies.database import get_db
 from dependencies.Authorization import get_current_user, get_current_admin
+from helper_functions.hashing import check_password
 from schema.user_models import User as db_User
 from schema.enums import Roles
 from services.user_services_management import (
@@ -23,28 +24,40 @@ class UpdatePersonalInfo(BaseModel):
     name: Optional[str] = None
     new_email: Optional[EmailStr] = None
     password: Optional[str] = None
+    current_password: Optional[str] = None
+
+#Users to swich own privacy
+class ChangePrivacyRequest(BaseModel):
+    email: EmailStr
+    privacy_level: str
+
+
 
 
 @router_user_management.post("/change_personal_information/")
-async def change_personal_informaiton(
-    data: UpdatePersonalInfo,
-    current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
-):
+async def change_personal_informaiton(data: UpdatePersonalInfo,current_user: db_User = Depends(get_current_user),session: AsyncSession = Depends(get_db),):
     # Enforce owner-only access and delegate business logic to service
     if current_user.email != data.email:
         raise HTTPException(status_code=403, detail="Not allowed")
+
+    if data.new_email or data.password:
+        if not data.current_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Current password is required to update email or password",
+            )
+        if not check_password(data.current_password, current_user.password):
+            raise HTTPException(
+                status_code=401,
+                detail="Current password verification failed",
+            )
 
     user_obj = await change_personal_information(data, current_user, session)
     return {"status": "ok", "user": {"email": user_obj.email, "name": user_obj.name}}
 
 #Admin can modify user roles and active statuses
 @router_user_management.post("/modify_status/")
-async def modify_status(
-    data: dict,
-    current_admin: db_User = Depends(get_current_admin),
-    session: AsyncSession = Depends(get_db),
-):
+async def modify_status(data: dict,current_admin: db_User = Depends(get_current_admin),session: AsyncSession = Depends(get_db)):
     """Admin endpoint: update user's role and active status by email.
 
     Expects JSON with: { "email": "user@wamolabs.com", "role": "Admin|User|...", "active": true }
@@ -78,12 +91,6 @@ async def soft_delete(
 
     user_obj = await soft_delete_user(data, current_user, session)
     return {"status": "ok", "email": user_obj.email, "soft_delete": user_obj.soft_delete}
-
-
-#Users to swich own privacy
-class ChangePrivacyRequest(BaseModel):
-    email: EmailStr
-    privacy_level: str
 
 
 @router_user_management.post("/change_privacy/")
