@@ -1,6 +1,5 @@
 backend/.venv/
 backend/.env
-backend/alembic.ini
 
 __pycache__/
 *.py[cod]
