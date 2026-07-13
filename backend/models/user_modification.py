@@ -10,7 +10,6 @@ class UpdatePersonalInfo(BaseModel):
     password: Optional[str] = None
     current_password: Optional[str] = None
 
-#Users to swich own privacy
 class ChangePrivacyRequest(BaseModel):
     email: EmailStr
     privacy_level: str

@@ -2,7 +2,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import inspect
+from sqlalchemy import inspect
 from schema.user_models import User as db_User
 
 

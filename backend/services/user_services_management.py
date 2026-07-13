@@ -6,7 +6,7 @@ from pydantic import EmailStr
 from schema.enums import Roles
 from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
-
+from models.user_modification import ChangeStatus
 
 async def change_personal_information(data, current_user, session: AsyncSession):
     # data is expected to have email, name?, new_email?, password?
@@ -35,10 +35,12 @@ async def change_personal_information(data, current_user, session: AsyncSession)
     return user
 
 
-async def modify_status(data: dict, current_admin, session: AsyncSession):
+async def modify_status(data: ChangeStatus, current_admin, session: AsyncSession):
     email = data.get("email")
-    role = data.get("role")
-    active = data.get("active")
+    if data.role:
+        role = data.get("role")
+    if data.active:
+        active = data.get("active")
 
     user = await get_user_by_email(email, session)
     if user is None:

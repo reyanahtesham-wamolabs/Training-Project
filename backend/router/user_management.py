@@ -15,7 +15,7 @@ from services.user_services_management import (
     soft_delete_user,
     change_privacy as svc_change_privacy,
 )
-from models.user_modification import UpdatePersonalInfo,ChangePrivacyRequest
+from models.user_modification import UpdatePersonalInfo,ChangePrivacyRequest,ChangeStatus
 router_user_management = APIRouter()
 
 @router_user_management.post("/change_personal_information/")
@@ -41,7 +41,7 @@ async def change_personal_informaiton(data: UpdatePersonalInfo,current_user: db_
 
 #Admin can modify user roles and active statuses
 @router_user_management.post("/modify_status/")
-async def modify_status(data: dict,current_admin: db_User = Depends(get_current_admin),session: AsyncSession = Depends(get_db)):
+async def modify_status(data: ChangeStatus,current_admin: db_User = Depends(get_current_admin),session: AsyncSession = Depends(get_db)):
     "Admin endpoint: update user's role and active status by email."
     # Delegate admin business logic to service
     user_obj = await svc_modify_status(data, current_admin, session)
@@ -61,7 +61,7 @@ async def change_privacy(data: ChangePrivacyRequest,current_user: db_User = Depe
     allowed = {"High", "Medium", "Low"}
     privacy = data.privacy_level
     if privacy not in allowed:
-        raise HTTPException(status_code=400, detail=f"privacy_level must be one of {sorted(allowed)}")
+        raise HTTPException(status_code=400, detail=f"privacy_level must be one of {allowed}")
 
     # Owner-only: verify current user matches target email
     if current_user.email != data.email:
