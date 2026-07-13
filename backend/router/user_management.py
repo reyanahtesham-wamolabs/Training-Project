@@ -53,15 +53,10 @@ async def soft_delete(current_user: UserResponse = Depends(get_current_user),ses
 
 @router_user_management.patch("/change_privacy/")
 async def change_privacy(data: ChangePrivacyRequest,current_user: UserResponse = Depends(get_current_user),session: AsyncSession = Depends(get_db),):
-    """Allow a user to change their privacy level (e.g. High/Medium/Low)."""
-    allowed = {"High", "Medium", "Low"}
-    privacy = data.privacy_level
-    if privacy not in allowed:
-        raise HTTPException(status_code=400, detail=f"privacy_level must be one of {allowed}")
-
+    """Allow a user to change their privacy level (e.g. low/medium/high)."""
     # Owner-only: verify current user matches target email
     if current_user.email != data.email:
         raise HTTPException(status_code=403, detail="Only the owner can change privacy")
 
     user_obj = await svc_change_privacy(data, current_user, session)
-    return {"status": "ok", "email": user_obj.email, "privacyLevel": user_obj.privacyLevel}
+    return {"status": "ok", "email": user_obj.email, "privacy_level": user_obj.privacy_level}

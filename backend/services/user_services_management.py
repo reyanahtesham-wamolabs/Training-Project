@@ -3,7 +3,7 @@ from helper_functions.hashing import hash_password, MAX_PASSWORD_LENGTH
 from repository.user_repository import get_user_by_email, save_user, update_user
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import EmailStr
-from schema.enums import Roles
+from schema.enums import Roles, Levels
 from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from models.user_modification import ChangeStatus
@@ -36,26 +36,22 @@ async def change_personal_information(data, current_user, session: AsyncSession)
 
 
 async def modify_status(data: ChangeStatus, current_admin, session: AsyncSession):
-    email = data.get("email")
-    if data.role:
-        role = data.get("role")
-    if data.active:
-        active = data.get("active")
-
-    user = await get_user_by_email(email, session)
+    user = await get_user_by_email(data.email, session)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # assign role
-    try:
-        user.role = Roles(role) if not isinstance(role, Roles) else role
-    except Exception:
+    if data.role is not None:
         try:
-            user.role = Roles[role]
-        except Exception:
-            raise HTTPException(status_code=400, detail="invalid role value")
+            user.role = Roles(data.role) if not isinstance(data.role, Roles) else data.role
+        except ValueError:
+            try:
+                user.role = Roles[data.role]
+            except KeyError:
+                raise HTTPException(status_code=400, detail="invalid role value") from None
 
-    user.active = bool(active)
+    if data.active is not None:
+        user.active = bool(data.active)
+
     return await update_user(user, session)
 
 
@@ -68,14 +64,16 @@ async def soft_delete_user( current_user, session: AsyncSession):
 
 
 async def change_privacy(data, current_user, session: AsyncSession):
-    allowed = {"High", "Medium", "Low"}
     privacy = data.privacy_level
-    if privacy not in allowed:
-        raise HTTPException(status_code=400, detail=f"privacy_level must be one of {sorted(allowed)}")
+    try:
+        privacy_enum = Levels(privacy.lower())
+    except (ValueError, AttributeError):
+        valid_values = ", ".join([level.value for level in Levels])
+        raise HTTPException(status_code=400, detail=f"privacy_level must be one of {valid_values}")
 
     user = await get_user_by_email(data.email, session)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user.privacyLevel = privacy
+    user.privacy_level = privacy_enum
     return await update_user(user, session)

@@ -33,7 +33,6 @@ class UserResponse(BaseModel):
     role:Roles
     active:bool
     email:EmailStr
-    password:str
     privacy_level:Levels
     soft_delete:bool
     model_config = ConfigDict(from_attributes=True)
