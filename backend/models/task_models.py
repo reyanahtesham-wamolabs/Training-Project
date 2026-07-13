@@ -9,7 +9,7 @@ class Task(BaseModel):
     name : str
     schedule_date:date |None=None
     status:Status
-    soft_delete:bool
+    soft_delete:bool |None=False
     priority:Levels
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
 

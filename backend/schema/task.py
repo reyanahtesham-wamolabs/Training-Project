@@ -7,6 +7,18 @@ from uuid import uuid4
 from .enums import Levels,Status
 from .baseclass import Base
 from datetime import date
+from sqlalchemy import Column
+from sqlalchemy import Table
+from sqlalchemy.orm import relationship
+
+
+
+association_table = Table(
+    "task_dependency",
+    Base.metadata,
+    Column("prerequisite_task_id", ForeignKey("Task.id"), primary_key=True),
+    Column("dependant_task_id", ForeignKey("Task.id"), primary_key=True),
+)
 
 class Task(Base):
     __tablename__="Task"
@@ -15,5 +27,24 @@ class Task(Base):
     name:Mapped[str]
     schedule_date: Mapped[date | None] = mapped_column(date, nullable=True)
     status:Mapped[Status]
-    soft_delete:Mapped[bool]=mapped_column(bool,default=True)
+    soft_delete:Mapped[bool]=mapped_column(bool,default=False)
     priority:Mapped[Levels]    
+    dependants: Mapped[list["Task"]] = relationship(
+        "Task",
+        secondary=association_table,
+        primaryjoin=id == association_table.c.prerequisite_task_id,
+        secondaryjoin=id == association_table.c.dependant_task_id,
+        back_populates="prerequisites",
+    )
+
+    prerequisites: Mapped[list["Task"]] = relationship(
+        "Task",
+        secondary=association_table,
+        primaryjoin=id == association_table.c.dependant_task_id,
+        secondaryjoin=id == association_table.c.prerequisite_task_id,
+        back_populates="dependants",
+    )
+
+
+
+

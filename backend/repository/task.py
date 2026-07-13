@@ -21,6 +21,8 @@ class TaskCrud:
     async def delete_task(task_id: str,session:AsyncSession):
         try:
             task=await session.get(db_task,task_id)
+            if task is None:
+                raise HTTPException(status_code=404, detail="Task not found")
             await session.delete(task)
             await session.commit()
             return {"message":"delete successful"}
@@ -30,7 +32,7 @@ class TaskCrud:
     @staticmethod
     async def update_task(data:TaskUpdate,session:AsyncSession):
         try:
-            task=await session.get(db_task,TaskUpdate.id)
+            task=await session.get(db_task,data.id)
             if task is None:
                 raise HTTPException(status_code=404, detail="Task not found")
             update_data = data.model_dump(
@@ -49,9 +51,24 @@ class TaskCrud:
     @staticmethod
     async def get_all_tasks(session: AsyncSession):
         try:
-            stmt = (select(Task))
+            stmt = (select(db_task))
             result = await session.execute(stmt)
             tasks = result.scalars().all()
             return tasks
         except SQLAlchemyError:
             raise
+    @staticmethod
+    async def add_prerequisite(prerequisite_id:str,dependant_id:str,session:AsyncSession):
+        if prerequisite_id==dependant_id:
+            raise ValueError("Task Cannot Depend On Itself")
+        try:
+            prerequisite=session.get(db_task,prerequisite_id)   
+            dependant=session.get(db_task,dependant_id)
+            if prerequisite is None or dependant is None:
+                raise ValueError("Task not found")
+            prerequisite.dependants.append(dependant)
+            session.commit()
+        except SQLAlchemyError:
+            raise
+
+
