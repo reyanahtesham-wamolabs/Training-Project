@@ -8,12 +8,14 @@ load_dotenv()
 
 ALGORITHM=os.getenv("ALGORITHM")
 SECRET_KEY=os.getenv("SECRET_KEY")
+_access_exp_raw = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
+_refresh_exp_raw = os.getenv("REFRESH_TOKEN_EXPIRE_DAYS")
 
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
-REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS"))
-
-if not all([ALGORITHM, SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS]):
+if not all([ALGORITHM, SECRET_KEY, _access_exp_raw, _refresh_exp_raw]):
     raise RuntimeError("Missing required JWT environment configuration")
+
+ACCESS_TOKEN_EXPIRE_MINUTES = int(_access_exp_raw)
+REFRESH_TOKEN_EXPIRE_DAYS = int(_refresh_exp_raw)
 
 class TokenFunctionality:
     def create_access_token( email: str) -> str:
