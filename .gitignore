@@ -1,6 +1,7 @@
 backend/.venv/
 backend/.env
-backend/Models/__pycache__
+backend/alembic.ini
 
 __pycache__/
 *.py[cod]
+*$py.class
