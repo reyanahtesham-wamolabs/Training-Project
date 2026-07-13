@@ -1,5 +1,7 @@
 import bcrypt
 
+MAX_PASSWORD_LENGTH = 20
+
 def hash_password(plainPassword):            
     salt = bcrypt.gensalt()
     hashed_bytes = bcrypt.hashpw(plainPassword.encode("utf-8"), salt)

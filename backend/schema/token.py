@@ -9,6 +9,7 @@ from .baseclass import Base
 class RefreshToken(Base):
     __tablename__ = "RefreshToken"
     id: Mapped[str] = mapped_column(primary_key=True, default=lambda: str(uuid4()))
-    email: Mapped[str] = mapped_column(ForeignKey("User.email"))
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("User.id", ondelete="CASCADE"),)
     token: Mapped[str]
     expire_date: Mapped[datetime]

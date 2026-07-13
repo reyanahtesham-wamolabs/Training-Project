@@ -1,5 +1,5 @@
 from __future__ import annotations
-from helper_functions.hashing import hash_password
+from helper_functions.hashing import hash_password, MAX_PASSWORD_LENGTH
 from repository.user_repository import get_user_by_email, save_user, update_user
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import EmailStr
@@ -22,6 +22,11 @@ async def change_personal_information(data, current_user, session: AsyncSession)
         user.email = str(data.new_email)
         updated = True
     if getattr(data, "password", None):
+        if len(data.password) > MAX_PASSWORD_LENGTH:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Password must be at most {MAX_PASSWORD_LENGTH} characters",
+            )
         user.password = hash_password(data.password)
         updated = True
 

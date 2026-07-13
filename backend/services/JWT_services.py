@@ -2,14 +2,18 @@ from datetime import datetime, timedelta, UTC
 import jwt
 import os
 from dotenv import load_dotenv
-from repository.token import tokenCRUD 
+from repository.token import tokenCRUD
+from repository.user_repository import get_user_by_email
 load_dotenv()
 
 ALGORITHM=os.getenv("ALGORITHM")
 SECRET_KEY=os.getenv("SECRET_KEY")
 
-ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
-REFRESH_TOKEN_EXPIRE_DAYS = os.getenv("REFRESH_TOKEN_EXPIRE_DAYS")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS"))
+
+if not all([ALGORITHM, SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS]):
+    raise RuntimeError("Missing required JWT environment configuration")
 
 class TokenFunctionality:
     def create_access_token( email: str) -> str:
@@ -54,9 +58,13 @@ class TokenFunctionality:
             if not user_email:
                 return {"status": "login_required"}
 
+            user = await get_user_by_email(user_email, session)
+            if user is None:
+                return {"status": "login_required"}
+
             # check if a refresh token exists for this user
             try:
-                has_refresh = await tokenCRUD.token_exists(user_email, session)
+                has_refresh = await tokenCRUD.token_exists(user.id, session)
             except Exception:
                 # on DB errors, conservatively require login
                 return {"status": "login_required"}
@@ -68,16 +76,16 @@ class TokenFunctionality:
             else:
                 return {"status": "login_required"}
 
-    async def create_refresh_token(email: str, session) -> str:
+    async def create_refresh_token(user_id: str, session) -> str:
         expire_time=datetime.now(UTC) + timedelta(days=int(REFRESH_TOKEN_EXPIRE_DAYS))
         expire_time = expire_time.replace(tzinfo=None)
         payload = {
-            "sub": str(email),
+            "sub": str(user_id),
             "type": "refresh",
             "exp": expire_time
         }
         token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-        flag = await tokenCRUD.token_exists(email, session)
+        flag = await tokenCRUD.token_exists(user_id, session)
         if not flag:
-            await tokenCRUD.add_token(token, email, expire_time, session)
+            await tokenCRUD.add_token(token, user_id, expire_time, session)
         return token

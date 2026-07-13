@@ -53,7 +53,7 @@ async def get_current_user(
         )
 
     # Fetch user from DB
-    user=get_user_by_email(user.email,session)
+    user = await get_user_by_email(user_email, session)
 
     if user is None:
         raise HTTPException(

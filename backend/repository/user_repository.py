@@ -27,7 +27,7 @@ async def update_user(user_obj: db_User, session: AsyncSession) -> db_User:
     try:
         state = inspect(user_obj)
         if state.detached:
-            user_obj = session.merge(user_obj)
+            user_obj = await session.merge(user_obj)
 
         await session.commit()
         await session.refresh(user_obj)
