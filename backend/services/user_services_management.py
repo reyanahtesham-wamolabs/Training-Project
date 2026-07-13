@@ -1,6 +1,6 @@
 from __future__ import annotations
 from helper_functions.hashing import hash_password
-from repository.user_repository import get_user_by_email, save_user
+from repository.user_repository import get_user_by_email, save_user, update_user
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import EmailStr
 from schema.enums import Roles
@@ -26,7 +26,7 @@ async def change_personal_information(data, current_user, session: AsyncSession)
         updated = True
 
     if updated:
-        return await save_user(user, session)
+        return await update_user(user, session)
     return user
 
 
@@ -49,15 +49,15 @@ async def modify_status(data: dict, current_admin, session: AsyncSession):
             raise HTTPException(status_code=400, detail="invalid role value")
 
     user.active = bool(active)
-    return await save_user(user, session)
+    return await update_user(user, session)
 
 
-async def soft_delete_user(data, current_user, session: AsyncSession):
-    user = await get_user_by_email(data.email, session)
+async def soft_delete_user( current_user, session: AsyncSession):
+    user = await get_user_by_email(current_user.email, session)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     user.soft_delete = True
-    return await save_user(user, session)
+    return await update_user(user, session)
 
 
 async def change_privacy(data, current_user, session: AsyncSession):
@@ -71,4 +71,4 @@ async def change_privacy(data, current_user, session: AsyncSession):
         raise HTTPException(status_code=404, detail="User not found")
 
     user.privacyLevel = privacy
-    return await save_user(user, session)
+    return await update_user(user, session)

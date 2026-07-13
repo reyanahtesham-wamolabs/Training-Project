@@ -15,24 +15,8 @@ from services.user_services_management import (
     soft_delete_user,
     change_privacy as svc_change_privacy,
 )
-
+from models.user_modification import UpdatePersonalInfo,ChangePrivacyRequest
 router_user_management = APIRouter()
-
-
-class UpdatePersonalInfo(BaseModel):
-    email: EmailStr  # email of the person to update (identifier)
-    name: Optional[str] = None
-    new_email: Optional[EmailStr] = None
-    password: Optional[str] = None
-    current_password: Optional[str] = None
-
-#Users to swich own privacy
-class ChangePrivacyRequest(BaseModel):
-    email: EmailStr
-    privacy_level: str
-
-
-
 
 @router_user_management.post("/change_personal_information/")
 async def change_personal_informaiton(data: UpdatePersonalInfo,current_user: db_User = Depends(get_current_user),session: AsyncSession = Depends(get_db),):
@@ -58,47 +42,21 @@ async def change_personal_informaiton(data: UpdatePersonalInfo,current_user: db_
 #Admin can modify user roles and active statuses
 @router_user_management.post("/modify_status/")
 async def modify_status(data: dict,current_admin: db_User = Depends(get_current_admin),session: AsyncSession = Depends(get_db)):
-    """Admin endpoint: update user's role and active status by email.
-
-    Expects JSON with: { "email": "user@wamolabs.com", "role": "Admin|User|...", "active": true }
-    """
-    # minimal validation of payload
-    email = data.get("email")
-    role = data.get("role")
-    active = data.get("active")
-    if not email or role is None or active is None:
-        raise HTTPException(status_code=400, detail="email, role and active are required")
-
+    "Admin endpoint: update user's role and active status by email."
     # Delegate admin business logic to service
     user_obj = await svc_modify_status(data, current_admin, session)
     return {"status": "ok", "user": {"email": user_obj.email, "role": str(user_obj.role), "active": user_obj.active}}
 
 
-#Soft delete ownself
-class SoftDeleteRequest(BaseModel):
-    email: EmailStr
-
-
 @router_user_management.post("/soft_delete/")
-async def soft_delete(
-    data: SoftDeleteRequest,
-    current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
-):
+async def soft_delete(current_user: db_User = Depends(get_current_user),session: AsyncSession = Depends(get_db)):
     # Owner-only: requester must match target email
-    if current_user.email != data.email:
-        raise HTTPException(status_code=403, detail="Only the owner can soft-delete their profile")
-
-    user_obj = await soft_delete_user(data, current_user, session)
+    user_obj = await soft_delete_user(current_user, session)
     return {"status": "ok", "email": user_obj.email, "soft_delete": user_obj.soft_delete}
 
 
 @router_user_management.post("/change_privacy/")
-async def change_privacy(
-    data: ChangePrivacyRequest,
-    current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
-):
+async def change_privacy(data: ChangePrivacyRequest,current_user: db_User = Depends(get_current_user),session: AsyncSession = Depends(get_db),):
     """Allow a user to change their privacy level (e.g. High/Medium/Low)."""
     allowed = {"High", "Medium", "Low"}
     privacy = data.privacy_level

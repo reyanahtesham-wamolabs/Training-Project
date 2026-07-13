@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from schema.user_models import User as db_User
 from services.JWT_services import TokenFunctionality
 from dependencies.database import get_db
-
+from repository.user_repository import get_user_by_email
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
@@ -53,9 +53,7 @@ async def get_current_user(
         )
 
     # Fetch user from DB
-    stmt = select(db_User).where(db_User.email == user_email)
-    result = await session.execute(stmt)
-    user = result.scalar_one_or_none()
+    user=get_user_by_email(user.email,session)
 
     if user is None:
         raise HTTPException(
