@@ -57,18 +57,20 @@ class TaskCrud:
             return tasks
         except SQLAlchemyError:
             raise
+
     @staticmethod
-    async def add_prerequisite(prerequisite_id:str,dependant_id:str,session:AsyncSession):
-        if prerequisite_id==dependant_id:
-            raise ValueError("Task Cannot Depend On Itself")
+    async def add_prerequisite(prerequisite_id: str,dependant_id: str,session: AsyncSession,):
+        if prerequisite_id == dependant_id:
+            raise ValueError("Task cannot depend on itself")
         try:
-            prerequisite=session.get(db_task,prerequisite_id)   
-            dependant=session.get(db_task,dependant_id)
+            prerequisite = await session.get(db_task, prerequisite_id)
+            dependant = await session.get(db_task, dependant_id)
             if prerequisite is None or dependant is None:
                 raise ValueError("Task not found")
             prerequisite.dependants.append(dependant)
-            session.commit()
+            await session.commit()
         except SQLAlchemyError:
+            await session.rollback()
             raise
 
 
