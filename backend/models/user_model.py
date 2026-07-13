@@ -1,7 +1,7 @@
-from pydantic import  EmailStr, BaseModel,field_validator,Field
+from pydantic import  EmailStr, BaseModel,field_validator,Field,ConfigDict
 import uuid
 from helper_functions.hashing import hash_password
-from schema.enums import Roles
+from schema.enums import Roles,Levels
 class User(BaseModel):
     name : str
     email: str 
@@ -9,6 +9,7 @@ class User(BaseModel):
     role:Roles
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
     
+
 
 class CreateUser(BaseModel):
     email:EmailStr
@@ -25,3 +26,14 @@ class CreateUser(BaseModel):
 class UserLogin(BaseModel):
     email:str
     password:str 
+
+class UserResponse(BaseModel):
+    id:str
+    name:str
+    role:Roles
+    active:bool
+    email:EmailStr
+    password:str
+    privacy_level:Levels
+    soft_delete:bool
+    model_config = ConfigDict(from_attributes=True)

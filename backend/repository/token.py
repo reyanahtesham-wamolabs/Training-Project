@@ -65,4 +65,3 @@ class tokenCRUD:
         except SQLAlchemyError:
             await session.rollback()
             raise
-    

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from sqlalchemy.orm import Mapped
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey,DateTime
 from sqlalchemy.orm import mapped_column
 from datetime import datetime
 from uuid import uuid4
@@ -12,4 +12,4 @@ class RefreshToken(Base):
     user_id: Mapped[str] = mapped_column(
         ForeignKey("User.id", ondelete="CASCADE"),)
     token: Mapped[str]
-    expire_date: Mapped[datetime]
+    expire_date: Mapped[datetime]=mapped_column(DateTime(timezone=True))
