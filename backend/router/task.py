@@ -10,30 +10,30 @@ router = APIRouter()
 
 
 @router.post("/create_task/")
-async def create_task(task_data: TaskCreation, session: AsyncSession = Depends(get_db)):
+async def create_task_route(task_data: TaskCreation, session: AsyncSession = Depends(get_db)):
     #roles based access and jwt auth in other branch. Will be added after
     task=await TaskCrud.add_task(task_data,session)
     return task
 
 @router.delete("/delete_task/")
-async def delet_task(task_id: str, session: AsyncSession = Depends(get_db)):
+async def delete_task_route(task_id: str, session: AsyncSession = Depends(get_db)):
     #roles based access and jwt auth in other branch. Will be added after
     await TaskCrud.delete_task(task_id,session)
-    return "User Deleted Successfully"
+    return "Task Deleted Successfully"
 
 @router.get("/view_task/")
-async def view_task(session: AsyncSession = Depends(get_db)):
+async def view_task_route(session: AsyncSession = Depends(get_db)):
     #roles based access and jwt auth in other branch. Will be added after
     return await TaskCrud.get_all_tasks(session)
 
 @router.put("/update_task/")
-async def update_task(user_data: TaskUpdate, session: AsyncSession = Depends(get_db)):
+async def update_task_route(user_data: TaskUpdate, session: AsyncSession = Depends(get_db)):
     #roles based access and jwt auth in other branch. Will be added after
     await TaskCrud.update_task(user_data,session)
     return "Updated"
 
 @router.put("/add_prerequisite/")
-async def update_task(prerequisite_id,dependant_id, session: AsyncSession = Depends(get_db)):
+async def add_prerequisite_route(prerequisite_id: str, dependant_id: str, session: AsyncSession = Depends(get_db)):
     #roles based access and jwt auth in other branch. Will be added after
     await TaskCrud.add_prerequisite(prerequisite_id,dependant_id,session)
     return "Updated"
