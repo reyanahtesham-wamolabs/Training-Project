@@ -7,13 +7,27 @@ from dependencies.database import get_db
 
 router = APIRouter()
 
-#create task
-#delete task
-#update task
-#view all tasks
 
 @router.post("/create_task/")
-async def signup(user_data: CreateUser, session: AsyncSession = Depends(get_db)):
+async def create_task(task_data: CreateUser, session: AsyncSession = Depends(get_db)):
+    #roles based access and jwt auth in other branch. Will be added after
+
+    return task_data
+
+@router.post("/delete_task/")
+async def delet_task(user_data: CreateUser, session: AsyncSession = Depends(get_db)):
+    #roles based access and jwt auth in other branch. Will be added after
+    userCompleteData = await UserAuthenticationServices.user_signup(user_data, session)
+    return userCompleteData
+
+@router.get("/view_task/")
+async def view_task(user_data: CreateUser, session: AsyncSession = Depends(get_db)):
+    #roles based access and jwt auth in other branch. Will be added after
+    userCompleteData = await UserAuthenticationServices.user_signup(user_data, session)
+    return userCompleteData
+
+@router.put("/update_task/")
+async def update_task(user_data: CreateUser, session: AsyncSession = Depends(get_db)):
     #roles based access and jwt auth in other branch. Will be added after
     userCompleteData = await UserAuthenticationServices.user_signup(user_data, session)
     return userCompleteData
