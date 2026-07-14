@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user_model import User,CreateUser,UserLogin
+from models.tokens import RefreshToken
 from repository.user_auth import UserCrud
 from services.auth_services import UserAuthenticationServices
 from dependencies.database import get_db
@@ -18,7 +19,7 @@ async def login(user_data: UserLogin, session: AsyncSession = Depends(get_db)):
     return data
 
 @router.post("/refresh")
-async def refresh(refresh_token:str,session:AsyncSession=Depends(get_db)):
-    token=await TokenFunctionality.refresh_token(refresh_token,session)
+async def refresh(token:RefreshToken,session:AsyncSession=Depends(get_db)):
+    token=await TokenFunctionality.refresh_token(token.refresh_token,session)
     return token
 

@@ -10,14 +10,14 @@ from services.user_services_management import (
     soft_delete_user,
     change_privacy as svc_change_privacy,
 )
-from schema.enums import Levels
+from models.user_model import UserPrivacy
 from models.user_modification import UpdatePersonalInfo,ChangeStatus
 router_user_management = APIRouter()
 
 @router_user_management.patch("/change_personal_information/")
 async def change_personal_information(data: UpdatePersonalInfo,current_user: db_User = Depends(get_current_user),session: AsyncSession = Depends(get_db),):
     # Enforce owner-only access and delegate business logic to service
-    if data.new_email or data.password:
+    if data.new_email or data.new_password:
         if not data.current_password:
             raise HTTPException(
                 status_code=400,
@@ -30,7 +30,7 @@ async def change_personal_information(data: UpdatePersonalInfo,current_user: db_
             )
 
     user_obj = await svc_change_personal_information(data, current_user, session)
-    return {"status": "ok", "user": {"email": user_obj.email, "name": user_obj.name}}
+    return {"status": "ok","action":"Login Required" ,"user": {"email": user_obj.email, "name": user_obj.name}}
 
 #Admin can modify user roles and active statuses
 @router_user_management.patch("/modify_user_status/")
@@ -47,7 +47,7 @@ async def soft_delete(current_user: db_User = Depends(get_current_user),session:
     return {"status": "ok", "email": user_obj.email, "soft_delete": user_obj.soft_delete}
 
 @router_user_management.patch("/change_user_privacy/")
-async def change_privacy(new_level:Levels,current_user: db_User = Depends(get_current_user),session: AsyncSession = Depends(get_db),):
+async def change_privacy(new_level:UserPrivacy,current_user: db_User = Depends(get_current_user),session: AsyncSession = Depends(get_db),):
     """Allow a user to change their privacy level (e.g. low/medium/high)."""
 
     user_obj = await svc_change_privacy(new_level, current_user, session)

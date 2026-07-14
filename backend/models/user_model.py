@@ -36,3 +36,6 @@ class UserResponse(BaseModel):
     privacy_level:Levels
     soft_delete:bool
     model_config = ConfigDict(from_attributes=True)
+
+class UserPrivacy(BaseModel):
+    level:Levels
