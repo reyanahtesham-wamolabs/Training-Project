@@ -1,5 +1,5 @@
 from models.user_model import User,CreateUser,UserLogin
-from repository.user_CRUD import UserCrud
+from repository.user_auth import UserCrud
 from .JWT_services import TokenFunctionality
 from fastapi import HTTPException
 from helper_functions.hashing import hash_password

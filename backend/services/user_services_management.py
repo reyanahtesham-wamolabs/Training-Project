@@ -10,7 +10,7 @@ from models.user_modification import ChangeStatus
 
 async def change_personal_information(data, current_user, session: AsyncSession):
     # data is expected to have email, name?, new_email?, password?
-    user = await get_user_by_email(data.email, session)
+    user = await get_user_by_email(current_user.email, session)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -56,24 +56,13 @@ async def modify_status(data: ChangeStatus, current_admin, session: AsyncSession
 
 
 async def soft_delete_user( current_user, session: AsyncSession):
-    user = await get_user_by_email(current_user.email, session)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    user.soft_delete = True
-    return await update_user(user, session)
+    if current_user.soft_delete:
+        current_user.soft_delete=False
+    else:
+        current_user.soft_delete = True
+    return await update_user(current_user, session)
 
 
-async def change_privacy(data, current_user, session: AsyncSession):
-    privacy = data.privacy_level
-    try:
-        privacy_enum = Levels(privacy.lower())
-    except (ValueError, AttributeError):
-        valid_values = ", ".join([level.value for level in Levels])
-        raise HTTPException(status_code=400, detail=f"privacy_level must be one of {valid_values}")
-
-    user = await get_user_by_email(data.email, session)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.privacy_level = privacy_enum
-    return await update_user(user, session)
+async def change_privacy(level, current_user, session: AsyncSession):
+    current_user.privacy_level = level
+    return await update_user(current_user, session)

@@ -1,6 +1,5 @@
 from pydantic import  EmailStr, BaseModel,field_validator,Field,ConfigDict
 import uuid
-from helper_functions.hashing import hash_password
 from schema.enums import Roles,Levels
 class User(BaseModel):
     name : str
@@ -30,6 +29,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id:str
     name:str
+    password:str
     role:Roles
     active:bool
     email:EmailStr

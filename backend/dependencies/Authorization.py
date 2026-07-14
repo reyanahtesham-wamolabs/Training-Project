@@ -1,16 +1,17 @@
 from fastapi import Depends, HTTPException, Response, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from schema.user_models import User as db_User
 from services.JWT_services import TokenFunctionality
 from dependencies.database import get_db
 from repository.user_repository import get_user_by_email
 from models.user_model import UserResponse
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+from schema.enums import Roles
+security = HTTPBearer()
 
 async def get_current_user(
     response: Response,
-    token: str = Depends(oauth2_scheme),
+    token: str = Depends(security),
     session: AsyncSession = Depends(get_db),
 ) -> UserResponse:
     """
@@ -18,9 +19,10 @@ async def get_current_user(
     If token is expired, attempts to refresh using stored refresh token.
     Raises HTTPException if token is invalid or login is required.
     """
+    print(token.credentials)
     try:
-        token_result = await TokenFunctionality.ensure_valid_access_token(token, session)
-    
+        token_result = await TokenFunctionality.ensure_valid_access_token(token.credentials, session)
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -31,7 +33,7 @@ async def get_current_user(
     if token_result["status"] == "login_required":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired. Please login again",
+            detail="Token expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -60,7 +62,6 @@ async def get_current_user(
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
     return user
 
 
@@ -71,7 +72,6 @@ async def get_current_admin(
     Verifies that the current user has admin privileges.
     Use this as a dependency when admin-only access is required.
     """
-    from schema.enums import Roles
 
     if current_user.role != Roles.Admin:
         raise HTTPException(

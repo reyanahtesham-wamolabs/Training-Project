@@ -11,7 +11,7 @@ async def get_user_by_email(email: str, session: AsyncSession) -> db_User | None
     stmt = select(db_User).where(db_User.email == email)
     result = await session.execute(stmt)
     userObj=result.scalar_one_or_none()
-    return UserResponse.model_validate(userObj)
+    return userObj
 
 
 async def save_user(user_obj: db_User, session: AsyncSession) -> db_User:
@@ -25,15 +25,15 @@ async def save_user(user_obj: db_User, session: AsyncSession) -> db_User:
         raise
 
 
-async def update_user(user_obj: db_User, session: AsyncSession) -> db_User:
+async def update_user(user: db_User, session: AsyncSession) -> db_User:
     try:
-        state = inspect(user_obj)
+        state = inspect(user)
         if state.detached:
-            user_obj = await session.merge(user_obj)
+            user = await session.merge(user)
 
         await session.commit()
-        await session.refresh(user_obj)
-        return UserResponse.model_validate(user_obj)
+        await session.refresh(user)
+        return UserResponse.model_validate(user)
     except SQLAlchemyError:
         await session.rollback()
         raise

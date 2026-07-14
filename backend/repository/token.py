@@ -31,6 +31,7 @@ class tokenCRUD:
         except SQLAlchemyError:
             raise
     
+
     @staticmethod
     async def token_exists(user_id, session: AsyncSession):
         try:
