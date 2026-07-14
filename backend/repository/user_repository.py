@@ -30,7 +30,7 @@ async def save_user(user_obj: db_User, session: AsyncSession) -> db_User:
         raise
 
 
-async def update_user(user: db_User, session: AsyncSession) -> db_User:
+async def update_user(user: db_User, session: AsyncSession) -> UserResponse:
     try:
         state = inspect(user)
         if state.detached:
