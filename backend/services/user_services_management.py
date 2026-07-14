@@ -22,12 +22,12 @@ async def change_personal_information(data, current_user, session: AsyncSession)
         user.email = str(data.new_email)
         updated = True
     if getattr(data, "new_password", None):
-        if len(data.password) > MAX_PASSWORD_LENGTH:
+        if len(data.new_password) > MAX_PASSWORD_LENGTH:
             raise HTTPException(
                 status_code=400,
                 detail=f"Password must be at most {MAX_PASSWORD_LENGTH} characters",
             )
-        user.password = hash_password(data.password)
+        user.password = hash_password(data.new_password)
         updated = True
 
     if updated:

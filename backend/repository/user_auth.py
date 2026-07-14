@@ -27,7 +27,7 @@ class UserCrud:
             usersObj = result.scalar_one_or_none()
             if usersObj is None:
                 raise HTTPException(
-                    status_code=404, detail="User not found"
+                    status_code=401, detail="Invalid credentials"
                 )
             if not check_password(data.password, usersObj.password):
                 raise HTTPException(

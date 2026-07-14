@@ -3,7 +3,7 @@ import jwt
 import os
 from dotenv import load_dotenv
 from repository.token import tokenCRUD
-from repository.user_repository import get_user_by_email
+from repository.user_repository import get_user_by_id
 load_dotenv()
 
 ALGORITHM=os.getenv("ALGORITHM")
@@ -19,9 +19,9 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(_refresh_exp_raw)
 
 class  TokenFunctionality:
     @staticmethod
-    def create_access_token( email: str) -> str:
+    def create_access_token( id: str) -> str:
         payload = {
-            "sub": email,
+            "sub": id,
             "type": "access",
             "exp": datetime.now(UTC) + timedelta(minutes=int(ACCESS_TOKEN_EXPIRE_MINUTES)),
         }
@@ -58,11 +58,10 @@ class  TokenFunctionality:
                 # signature invalid
                 raise
 
-            user_email = payload.get("sub")
-            if not user_email:
+            user_id = payload.get("sub")
+            if not user_id:
                 return {"status": "login_required"}
-
-            user = await get_user_by_email(user_email, session)
+            user= await get_user_by_id(user_id,session)
             if user is None:
                 return {"status": "login_required"}
 
@@ -75,7 +74,7 @@ class  TokenFunctionality:
 
             if has_refresh:
                 # issue a new access token
-                new_access = TokenFunctionality.create_access_token(user_email)
+                new_access = TokenFunctionality.create_access_token(user_id)
                 return {"status": "valid", "payload": new_access}
             else:
                 return {"status": "login_required"}
@@ -96,12 +95,16 @@ class  TokenFunctionality:
             await tokenCRUD.add_token(token, user_id, expire_time, session)
         return token
     
+    @staticmethod
     async def refresh_token(token,session):
-        decoded_token=TokenFunctionality.decode_token(token)
+        try:
+            decoded_token = TokenFunctionality.decode_token(token)
+        except jwt.PyJWTError:
+            return {"status": "login_required"}
         user_id=decoded_token["sub"]
         flag=await tokenCRUD.token_exists(user_id,session)
         if flag:
             access_token= TokenFunctionality.create_access_token(decoded_token["sub"])
             return {"access_token": access_token,"refresh_token": token,"token_type": "bearer"}
-        return {"status":'login required'}
+        return {"status": "login_required"}
     

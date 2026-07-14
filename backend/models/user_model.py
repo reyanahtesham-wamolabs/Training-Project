@@ -29,7 +29,6 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id:str
     name:str
-    password:str
     role:Roles
     active:bool
     email:EmailStr

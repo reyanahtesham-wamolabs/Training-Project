@@ -19,7 +19,6 @@ async def get_current_user(
     If token is expired, attempts to refresh using stored refresh token.
     Raises HTTPException if token is invalid or login is required.
     """
-    print(token.credentials)
     try:
         token_result = await TokenFunctionality.ensure_valid_access_token(token.credentials, session)
 
