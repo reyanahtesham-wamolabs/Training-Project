@@ -71,14 +71,9 @@ class  TokenFunctionality:
             except Exception:
                 # on DB errors, conservatively require login
                 return {"status": "login_required"}
-
             if has_refresh:
-                # issue a new access token
-                new_access = TokenFunctionality.create_access_token(user_id)
-                return {"status": "valid", "payload": new_access}
-            else:
-                return {"status": "login_required"}
-
+                return {"status":"refresh_required"}
+            return{"status":"login_required"}
     @staticmethod
     async def create_refresh_token(user_id: str, session) -> str:
     

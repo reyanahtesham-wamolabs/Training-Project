@@ -32,18 +32,17 @@ async def get_current_user(
     if token_result["status"] == "login_required":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired",
+            detail="login required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if token_result["status"] == "refresh_required":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired. login required",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Extract email from payload
-    if token_result["status"] == "refreshed":
-        payload = TokenFunctionality.decode_token(token_result["access_token"])
-        user_email = payload.get("sub")
-        if response is not None:
-            response.headers["X-Access-Token"] = token_result["access_token"]
-    else:  # "valid"
-        user_email = token_result["payload"].get("sub")
+
 
     if not user_email:
         raise HTTPException(
