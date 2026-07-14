@@ -63,6 +63,6 @@ async def soft_delete_user( current_user, session: AsyncSession):
     return await update_user(current_user, session)
 
 
-async def change_privacy(level, current_user, session: AsyncSession):
-    current_user.privacy_level = level
+async def change_privacy(privacy_level, current_user, session: AsyncSession):
+    current_user.privacy_level = privacy_level.level
     return await update_user(current_user, session)
