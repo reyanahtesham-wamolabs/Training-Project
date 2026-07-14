@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from schema.user_models import User as db_User
 from services.JWT_services import TokenFunctionality
 from dependencies.database import get_db
-from repository.user_repository import get_user_by_email
+from repository.user_repository import get_user_by_id
 from models.user_model import UserResponse
 from schema.enums import Roles
 security = HTTPBearer()
@@ -38,13 +38,13 @@ async def get_current_user(
     if token_result["status"] == "refresh_required":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired. login required",
+            detail="Token expired. refresh required",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    user_id=token_result["sub"]
 
-
-    if not user_email:
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -52,7 +52,7 @@ async def get_current_user(
         )
 
     # Fetch user from DB
-    user = await get_user_by_email(user_email, session)
+    user = await get_user_by_id(user_id, session)
 
     if user is None:
         raise HTTPException(
