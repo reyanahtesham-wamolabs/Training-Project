@@ -16,7 +16,6 @@ async def get_current_user(
 ) -> UserResponse:
     """
     Validates the access token and returns the current authenticated user.
-    If token is expired, attempts to refresh using stored refresh token.
     Raises HTTPException if token is invalid or login is required.
     """
     try:
@@ -68,7 +67,6 @@ async def get_current_admin(
 ) -> db_User:
     """
     Verifies that the current user has admin privileges.
-    Use this as a dependency when admin-only access is required.
     """
 
     if current_user.role != Roles.Admin:
