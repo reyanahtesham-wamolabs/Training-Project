@@ -24,6 +24,7 @@ class tokenCRUD:
             stmt = select(RefreshToken).where(
                 RefreshToken.user_id == user_id,
                 RefreshToken.token == JWT_token,
+                RefreshToken.expire_date > datetime.now(UTC),
             )
             result = await session.execute(stmt)
             tokenObj=result.scalar_one_or_none()

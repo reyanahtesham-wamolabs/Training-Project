@@ -26,7 +26,7 @@ class UserCrud:
             stmt = select(db_User).where(db_User.email == data.email)
             result = await session.execute(stmt)
             usersObj = result.scalar_one_or_none()
-            if usersObj is None:
+            if usersObj is None or not usersObj.active:
                 raise HTTPException(
                     status_code=401, detail="Invalid credentials"
                 )
