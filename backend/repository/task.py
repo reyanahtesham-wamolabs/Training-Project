@@ -7,11 +7,13 @@ from dependencies.Authorization import get_current_user, get_current_admin
 from models.task_models import Task,TaskCreation,TaskUpdate
 from schema.user_models import User as db_User
 from fastapi import HTTPException,Depends
+from sqlalchemy.orm import selectinload
+
 class TaskCrud:
     @staticmethod
     async def add_task(data: TaskCreation, session: AsyncSession):
-        complete_task=Task(name=data.name,schedule_date=data.schedule_date,status=data.status,priority=data.priority)
-        created_task=db_task(name=complete_task.name,schedule_date=complete_task.schedule_date,status=complete_task.status,priority=complete_task.priority,soft_delete=complete_task.soft_delete)
+        complete_task = Task(**data.model_dump())
+        created_task = db_task(**complete_task.model_dump())
         try:
             session.add(created_task)
             await session.commit()
@@ -65,8 +67,21 @@ class TaskCrud:
         if prerequisite_id == dependant_id:
             raise ValueError("Task cannot depend on itself")
         try:
-            prerequisite = await session.get(db_task, prerequisite_id)
-            dependant = await session.get(db_task, dependant_id)
+            stmt = (
+                select(db_task)
+                .options(selectinload(db_task.dependants))
+                .where(db_task.id == prerequisite_id)
+            )
+            result = await session.execute(stmt)
+            prerequisite = result.scalar_one()
+            stmt = (
+                select(db_task)
+                .options(selectinload(db_task.prerequisites))
+                .where(db_task.id == dependant_id)
+            )
+            result2 = await session.execute(stmt)
+            dependant = result2.scalar_one()
+
             if prerequisite is None or dependant is None:
                 raise ValueError("Task not found")
             prerequisite.dependants.append(dependant)

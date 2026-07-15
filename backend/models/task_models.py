@@ -11,6 +11,7 @@ class Task(BaseModel):
     priority:Levels
     project_id:str
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
+   
 
 class TaskCreation(BaseModel):
     name : str

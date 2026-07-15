@@ -12,7 +12,7 @@ router = APIRouter()
 @router.post("/signup_user/")
 async def signup(user_data: CreateUser, session: AsyncSession = Depends(get_db)):
     userCompleteData = await UserAuthenticationServices.user_signup(user_data, session)
-    return userCompleteData
+    return {"status":"User Created Successfully","User ID":userCompleteData.id}
 
 @router.post("/login/")
 async def login(user_data: UserLogin, session: AsyncSession = Depends(get_db)):

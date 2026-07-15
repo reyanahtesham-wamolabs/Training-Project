@@ -5,7 +5,6 @@ from schema.enums import ProjectStatus,Categories
 from sqlalchemy import Enum as sa_enum,Table, Column, ForeignKey
 from .baseclass import Base
 from datetime import date
-from .task import Task
 from typing import List
 
 project_tag_association = Table(
