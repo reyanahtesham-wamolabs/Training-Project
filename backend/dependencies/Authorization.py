@@ -53,10 +53,10 @@ async def get_current_user(
     # Fetch user from DB
     user = await get_user_by_id(user_id, session)
 
-    if user is None:
+    if user is None :
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+            detail="Account unavailable",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
