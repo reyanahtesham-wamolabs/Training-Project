@@ -15,6 +15,6 @@ class User(Base):
     active:Mapped[bool]
     email:Mapped[str] = mapped_column(unique=True,nullable=False)
     password:Mapped[str]
-    privacy_level:Mapped[Levels]=mapped_column(sa_enum(Levels))
+    privacy_level:Mapped[Levels]=mapped_column(sa_enum(Levels, name="Levels"))
     soft_delete:Mapped[bool]
 

@@ -10,6 +10,19 @@ from schema.baseclass import Base
 from schema import *
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
+
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+config = context.config
+config.set_main_option(
+    "sqlalchemy.url",
+    os.getenv("DATABASE_URL")
+)
+
+
 config = context.config
 
 # Interpret the config file for Python logging.

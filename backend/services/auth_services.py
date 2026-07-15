@@ -1,5 +1,5 @@
 from models.user_model import User,CreateUser,UserLogin
-from repository.user_CRUD import UserCrud
+from repository.user_auth import UserCrud
 from .JWT_services import TokenFunctionality
 from fastapi import HTTPException
 from helper_functions.hashing import hash_password
@@ -22,8 +22,8 @@ class UserAuthenticationServices:
 }
 
     async def user_login(user_data:UserLogin,session):
-        await UserCrud.user_login(user_data, session)
-        access_token = TokenFunctionality.create_access_token(user_data.email)
-        refresh_token = await TokenFunctionality.create_refresh_token(user_data.email,session)
+        user_obj = await UserCrud.user_login(user_data, session)
+        access_token = TokenFunctionality.create_access_token(user_obj.id)
+        refresh_token = await TokenFunctionality.create_refresh_token(user_obj.id, session)
         return {"access_token": access_token,"refresh_token": refresh_token,"token_type": "bearer"}
        
