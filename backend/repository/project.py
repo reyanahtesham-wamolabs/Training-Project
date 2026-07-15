@@ -26,6 +26,7 @@ class ProjectRepo:
             project=await session.get(db_project,project_id)
             project.archived=archive_status
             await session.commit()
+            return project
         except SQLAlchemyError:
             await session.rollback()
             raise
@@ -41,7 +42,7 @@ class ProjectRepo:
 
     @staticmethod
     async def create_tag(data : Tag,session:AsyncSession):
-        tag=db_tag(id=data.id,name=data.id)
+        tag=db_tag(id=data.id,name=data.name)
         try:
             session.add(tag)
             await session.commit()

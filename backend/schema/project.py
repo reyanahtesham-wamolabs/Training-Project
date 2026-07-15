@@ -18,7 +18,7 @@ project_tag_association = Table(
     ),
     Column(
         "tag_id",
-        ForeignKey("Tags.id", ondelete="CASCADE"),
+        ForeignKey("Tag.id", ondelete="CASCADE"),
         primary_key=True,
     ),
 )
@@ -40,7 +40,7 @@ class Project(Base):
             back_populates="projects",
         )
 class Tag(Base):
-    __tablename__="Tags"
+    __tablename__="Tag"
     id:Mapped[str]=mapped_column(primary_key=True)
     name:Mapped[str]
     projects: Mapped[List["Project"]] = relationship(

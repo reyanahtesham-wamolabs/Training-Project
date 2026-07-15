@@ -3,8 +3,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from schema.task import Task as db_task
+from dependencies.Authorization import get_current_user, get_current_admin
 from models.task_models import Task,TaskCreation,TaskUpdate
-from fastapi import HTTPException
+from schema.user_models import User as db_User
+from fastapi import HTTPException,Depends
 class TaskCrud:
     @staticmethod
     async def add_task(data: TaskCreation, session: AsyncSession):

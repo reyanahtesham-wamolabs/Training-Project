@@ -12,7 +12,10 @@ class Project(BaseModel):
     archived:bool
     category:Categories
     status:ProjectStatus
-    
+
+class ArchiveProject(BaseModel):
+    id:str
+    archive:bool
 class CreateProject(BaseModel):
     name : str
     start_date:date 

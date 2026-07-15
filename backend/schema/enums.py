@@ -6,7 +6,7 @@ class Roles(Enum):
 class Levels(Enum):
     low="low"
     medium="medium"
-    hight="high"
+    high="high"
 class ProjectStatus(Enum):
     planned="planned"
     started="started"
