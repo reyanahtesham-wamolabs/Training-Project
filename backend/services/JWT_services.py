@@ -78,8 +78,7 @@ class  TokenFunctionality:
             return{"status":"login_required"}
     @staticmethod
     async def create_refresh_token(user_id: str, session) -> str:
-
-        exists = await tokenCRUD.get_valid_refresh_token(user_id, session)
+        exists=await tokenCRUD.get_valid_refresh_token(user_id,session)
         if exists:
             return exists
         expire_time=datetime.now(UTC) + timedelta(days=int(REFRESH_TOKEN_EXPIRE_DAYS))
