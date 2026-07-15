@@ -52,3 +52,10 @@ async def change_privacy(new_level:UserPrivacy,current_user: db_User = Depends(g
 
     user_obj = await svc_change_privacy(new_level, current_user, session)
     return {"status": "ok", "email": user_obj.email, "privacy_level": user_obj.privacy_level}
+
+# @router_user_management.post("/assign_user")
+# async def assign_user(,current_user: db_User = Depends(get_current_user),session: AsyncSession = Depends(get_db),):
+#     """Allow a user to change their privacy level (e.g. low/medium/high)."""
+# # input of user id, project id, task id then make an assignment table and append it to all of them
+#     user_obj = await svc_change_privacy(new_level, current_user, session)
+#     return {"status": "ok", "email": user_obj.email, "privacy_level": user_obj.privacy_level}

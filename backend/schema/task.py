@@ -43,8 +43,3 @@ class Task(Base):
         secondaryjoin=id == association_table.c.prerequisite_task_id,
         back_populates="dependants",
     )
-
-
-
-
-

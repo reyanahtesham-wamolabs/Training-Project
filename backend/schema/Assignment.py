@@ -15,3 +15,5 @@ class Assignment(Base):
     user: Mapped["User"] = relationship(back_populates="assignments")
     project: Mapped["Project"] = relationship(back_populates="assignments")
     task: Mapped["Task"] = relationship(back_populates="assignments")
+
+
