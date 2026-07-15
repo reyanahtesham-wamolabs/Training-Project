@@ -19,3 +19,7 @@ class Categories(Enum):
     US_based="US_based"
     Pak_profile="Pak_profile"
     inhouse="inhouse"
+class AssignmentRole(Enum):
+    team_lead="team_lead"
+    manager="manager"
+    developer="developer"

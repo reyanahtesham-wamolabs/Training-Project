@@ -27,6 +27,7 @@ class Task(Base):
     priority:Mapped[Levels]    
     project_id:Mapped[str]=mapped_column(ForeignKey("Project.id"))
     parent_project:Mapped["Project"]=relationship(back_populates="tasks")
+    assignments:Mapped[List["Assignment"]]=relationship(back_populates="task")
     dependants: Mapped[List["Task"]] = relationship(
         "Task",
         secondary=association_table,
@@ -42,6 +43,7 @@ class Task(Base):
         secondaryjoin=id == association_table.c.prerequisite_task_id,
         back_populates="dependants",
     )
+
 
 
 
