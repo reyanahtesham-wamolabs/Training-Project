@@ -1,11 +1,12 @@
 from __future__ import annotations
-from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column,relationship
 from schema.enums import ProjectStatus,Categories
 from sqlalchemy import Enum as sa_enum,Table, Column, ForeignKey
 from .baseclass import Base
 from datetime import date
+from task import Task
+from typing import List
 
 project_tag_association = Table(
     "ProjectTag",
@@ -32,7 +33,8 @@ class Project(Base):
     start_date:Mapped[date]
     end_date:Mapped[date]
     category:Mapped[Categories]=mapped_column(sa_enum(Categories))
-    Status:Mapped[ProjectStatus]=mapped_column(sa_enum(ProjectStatus))
+    status:Mapped[ProjectStatus]=mapped_column(sa_enum(ProjectStatus))
+    tasks:Mapped[List[Task]]=mapped_column(back_populates="parent_project")
     tags: Mapped[list["Tag"]] = relationship(
             secondary=project_tag_association,
             back_populates="projects",
@@ -45,3 +47,4 @@ class Tag(Base):
         secondary=project_tag_association,
         back_populates="tags",
     )
+

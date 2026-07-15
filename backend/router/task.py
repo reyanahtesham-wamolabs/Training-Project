@@ -26,15 +26,15 @@ async def view_task_route(session: AsyncSession = Depends(get_db)):
     #roles based access and jwt auth in other branch. Will be added after
     return await TaskCrud.get_all_tasks(session)
 
-@router_task.put("/update_task/")
+@router_task.patch("/update_task/")
 async def update_task_route(user_data: TaskUpdate, session: AsyncSession = Depends(get_db)):
     #roles based access and jwt auth in other branch. Will be added after
     await TaskCrud.update_task(user_data,session)
     return "Updated"
 
-@router_task.put("/add_prerequisite/")
+@router_task.patch("/add_prerequisite/")
 async def add_prerequisite_route(prerequisite_id: str, dependant_id: str, session: AsyncSession = Depends(get_db)):
     #roles based access and jwt auth in other branch. Will be added after
     await TaskCrud.add_prerequisite(prerequisite_id,dependant_id,session)
-    return "Updated"
+    return "Pre Req Added"
 

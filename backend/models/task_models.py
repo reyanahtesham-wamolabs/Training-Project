@@ -11,6 +11,7 @@ class Task(BaseModel):
     status:Status
     soft_delete:bool |None=False
     priority:Levels
+    project_id:str
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
 
 class TaskCreation(BaseModel):
@@ -18,6 +19,7 @@ class TaskCreation(BaseModel):
     schedule_date:date |None=None
     status:Status
     priority:Levels
+    project_id:str
 
 class TaskUpdate(BaseModel):
     name : str |None=None

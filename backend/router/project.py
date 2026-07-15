@@ -23,7 +23,7 @@ async def get_all_tags(session: AsyncSession = Depends(get_db)):
    tags=ProjectRepo.get_all_tags(session)
    return tags
 
-@router_project.patch("/archive_user/")
+@router_project.patch("/archive_project/")
 async def archive_project_route(id:str,archive_status:bool,session:AsyncSession=Depends(get_db)):
     return ProjectRepo.change_archive(id,archive_status,session)
 
