@@ -14,7 +14,8 @@ async def create_project(data: CreateProject, session: AsyncSession = Depends(ge
 
 @router_project.post("/create_tag/")
 async def create_tag(data: CreateTag, session: AsyncSession = Depends(get_db)):
-    tag=Tag(name=data.name)
+    tag=Tag(name=data.name,)
+    ProjectRepo.create_tag(tag,session)
     return tag
 
 #List of all the tags

@@ -1,9 +1,7 @@
-from pydantic import  EmailStr, BaseModel,field_validator,Field
+from pydantic import  BaseModel,Field
 import uuid
-from helper_functions.hashing import hash_password
-from schema.enums import Roles
 from datetime import date
-from schema.enums import Status,Levels
+from schema.enums import ProjectStatus as Status,Levels
 
 class Task(BaseModel):
     name : str

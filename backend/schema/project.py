@@ -5,7 +5,7 @@ from schema.enums import ProjectStatus,Categories
 from sqlalchemy import Enum as sa_enum,Table, Column, ForeignKey
 from .baseclass import Base
 from datetime import date
-from task import Task
+from .task import Task
 from typing import List
 
 project_tag_association = Table(
@@ -34,8 +34,8 @@ class Project(Base):
     end_date:Mapped[date]
     category:Mapped[Categories]=mapped_column(sa_enum(Categories))
     status:Mapped[ProjectStatus]=mapped_column(sa_enum(ProjectStatus))
-    tasks:Mapped[List[Task]]=mapped_column(back_populates="parent_project")
-    tags: Mapped[list["Tag"]] = relationship(
+    tasks:Mapped[List["Task"]]=relationship(back_populates="parent_project")
+    tags: Mapped[List["Tag"]] = relationship(
             secondary=project_tag_association,
             back_populates="projects",
         )
@@ -43,7 +43,7 @@ class Tag(Base):
     __tablename__="Tags"
     id:Mapped[str]=mapped_column(primary_key=True)
     name:Mapped[str]
-    projects: Mapped[list["Project"]] = relationship(
+    projects: Mapped[List["Project"]] = relationship(
         secondary=project_tag_association,
         back_populates="tags",
     )
