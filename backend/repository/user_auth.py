@@ -9,7 +9,7 @@ from helper_functions.hashing import check_password
 class UserCrud:
     @staticmethod
     async def add_user(data: User, session: AsyncSession):
-        User1 = db_User(id=data.id,password=data.password,role=data.role,name=data.name,active=True,email=data.email,privacyLevel="High",soft_delete=False)
+        User1 = db_User(id=data.id,password=data.password,role=data.role,name=data.name,active=True,email=data.email,privacy_level="high",soft_delete=False)
         try:
             session.add(User1)
             await session.commit()
@@ -27,7 +27,7 @@ class UserCrud:
             usersObj = result.scalar_one_or_none()
             if usersObj is None:
                 raise HTTPException(
-                    status_code=404, detail="User not found"
+                    status_code=401, detail="Invalid credentials"
                 )
             if not check_password(data.password, usersObj.password):
                 raise HTTPException(

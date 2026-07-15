@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends,HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user_model import User,CreateUser,UserLogin
-from repository.user_CRUD import UserCrud
-from services.user_services import UserAuthenticationServices
+from models.tokens import RefreshToken
+from repository.user_auth import UserCrud
+from services.auth_services import UserAuthenticationServices
 from dependencies.database import get_db
+from services.JWT_services import TokenFunctionality
 
 router = APIRouter()
 
@@ -17,4 +19,10 @@ async def login(user_data: UserLogin, session: AsyncSession = Depends(get_db)):
     data = await UserAuthenticationServices.user_login(user_data, session)
     return data
 
+@router.post("/refresh")
+async def refresh(token:RefreshToken,session:AsyncSession=Depends(get_db)):
+     result = await TokenFunctionality.refresh_token(token.refresh_token, session)
+     if result.get("status") == "login_required":
+        raise HTTPException(status_code=401, detail="Login required")
+     return result
 
