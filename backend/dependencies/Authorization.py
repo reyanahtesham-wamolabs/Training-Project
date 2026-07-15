@@ -40,8 +40,8 @@ async def get_current_user(
             detail="Token expired. refresh required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    user_id=token_result["sub"]
+    print(token_result)
+    user_id=token_result["payload"]["sub"]
 
     if not user_id:
         raise HTTPException(

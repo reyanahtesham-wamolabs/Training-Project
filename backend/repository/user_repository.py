@@ -13,7 +13,7 @@ async def get_user_by_email(email: str, session: AsyncSession) -> db_User | None
     userObj=result.scalar_one_or_none()
     if userObj is None:
         return None
-    return UserResponse.model_validate(userObj)
+    return userObj
 
 async def get_user_by_id(id: str, session: AsyncSession) -> db_User | None:
     stmt = select(db_User).where(db_User.id == id)
