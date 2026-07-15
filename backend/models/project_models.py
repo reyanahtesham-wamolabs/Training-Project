@@ -20,6 +20,9 @@ class CreateProject(BaseModel):
     archived:bool
     category:Categories
     status:ProjectStatus
-class Tags(BaseModel):
+class CreateTag(BaseModel):
+    name:str
+
+class Tag(BaseModel):
     name:str
     id:str=Field(default_factory=lambda:str(uuid.uuid4()))

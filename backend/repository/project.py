@@ -1,9 +1,10 @@
 from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
-from schema.project import Project as db_project
-from models.project_models import Project,CreateProject
+from schema.project import Project as db_project, Tag as db_tag
+from models.project_models import Project,Tag
 
 class ProjectRepo:
     @staticmethod
@@ -19,6 +20,38 @@ class ProjectRepo:
             raise
 
     @staticmethod
+    async def create_tag(data : Tag,session:AsyncSession):
+        tag=db_tag(id=data.id,name=data.id)
+        try:
+            session.add(tag)
+            await session.commit()
+            return tag
+        except SQLAlchemyError:
+            await session.rollback()
+            raise
+    @staticmethod
+    async def get_all_projects(session:AsyncSession):
+        try:
+            stmt=(select(db_project).options(selectinload(db_project.tags)))
+            result=await session.execute(stmt)
+            tags=result.scalars().all()
+            return tags
+        except SQLAlchemyError:
+            await session.rollback()
+            raise
+
+    @staticmethod
+    async def get_all_tags(session:AsyncSession):
+        try:
+            stmt=(select(db_tag).options(selectinload(db_tag.projects)))
+            result=await session.execute(stmt)
+            tags=result.scalars().all()
+            return tags
+        except SQLAlchemyError:
+            await session.rollback()
+            raise
+
+    @staticmethod
     async def change_archive(project_id:str,archive_status:bool,session:AsyncSession):
         try:
             project=await session.get(db_project,project_id)
@@ -27,3 +60,5 @@ class ProjectRepo:
         except SQLAlchemyError:
             await session.rollback()
             raise
+
+
