@@ -28,6 +28,12 @@ async def get_user_by_name(name:str,session:AsyncSession)-> db_User|None:
     userObj=result.scalars().all()
     return userObj
 
+async def get_all_users(session:AsyncSession)-> list[db_User]:
+    stmt = select(db_User)
+    result = await session.execute(stmt)
+    user_objs=result.scalars().all()
+    return user_objs
+
 
 async def save_user(user_obj: db_User, session: AsyncSession) -> db_User:
     try:
@@ -38,6 +44,7 @@ async def save_user(user_obj: db_User, session: AsyncSession) -> db_User:
     except SQLAlchemyError:
         await session.rollback()
         raise
+
 
 
 async def update_user(user: db_User, session: AsyncSession) -> UserResponse:

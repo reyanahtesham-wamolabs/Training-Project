@@ -1,6 +1,6 @@
 from __future__ import annotations
 from helper_functions.hashing import hash_password, MAX_PASSWORD_LENGTH
-from repository.user_repository import get_user_by_email, save_user, update_user,assign_user as repo_assign_user
+from repository.user_repository import get_user_by_email, save_user, update_user,assign_user as repo_assign_user,get_all_users as get_users
 from repository.project import ProjectRepo
 from pydantic import EmailStr
 from schema.enums import Roles, Levels
@@ -11,7 +11,7 @@ from models.user_model import AssignUser,CreateAssignUser
 from repository.task import TaskCrud
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-
+f
 class UserManagementService:
     def __init__(self,db_session):
         self.session=db_session
@@ -61,7 +61,6 @@ class UserManagementService:
 
         return await update_user(user, self.session)
 
-
     async def soft_delete_user(self, current_user):
         if current_user.soft_delete:
             current_user.soft_delete=False
@@ -69,11 +68,11 @@ class UserManagementService:
             current_user.soft_delete = True
         return await update_user(current_user, self.session)
 
-
     async def change_privacy(self,privacy_level, current_user):
         current_user.privacy_level = privacy_level.level
         return await update_user(current_user, self.session)
-
+    async def get_all_users(self):
+        return get_users(self.session)
     async def assign_user(self,assignment_data:CreateAssignUser):
         assignment=AssignUser(**assignment_data.model_dump())
         user = await get_user_by_email(assignment.user_email, self.session)
@@ -88,6 +87,9 @@ class UserManagementService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Project '{assignment.project_name}' not found",
             )
+        task=await TaskCrud.get_task_by_id(assignment.task_id,self.session)
+        if not task.project_id==project.id:
+            raise "Task must be a part of the project" 
         try:
             assigned_result=await repo_assign_user(assignment.id,user.id, project.id, assignment.task_id,assignment.role, self.session)
             return assigned_result

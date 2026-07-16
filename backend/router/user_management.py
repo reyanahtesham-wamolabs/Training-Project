@@ -8,27 +8,28 @@ from schema.user_models import User as db_User
 from services.user_services_management import UserManagementService
 from models.user_model import UserPrivacy,CreateAssignUser
 from models.user_modification import UpdatePersonalInfo,ChangeStatus
+from repository.user_repository import get_all_users
 from typing import Annotated
 router_user_management = APIRouter()
 
-@router_user_management.patch("/change_personal_information/")
-async def change_personal_information(data: UpdatePersonalInfo,user_service: Annotated[UserManagementService, Depends(get_user_service)],
-                                      current_user: db_User = Depends(get_current_user)):
-    # Enforce owner-only access and delegate business logic to service
-    if data.new_email or data.new_password:
-        if not data.current_password:
-            raise HTTPException(
-                status_code=400,
-                detail="Current password is required to update email or password",
-            )
-        if not check_password(data.current_password, current_user.password):
-            raise HTTPException(
-                status_code=401,
-                detail="Current password verification failed",
-            )
+# @router_user_management.patch("/change_personal_information/")
+# async def change_personal_information(data: UpdatePersonalInfo,user_service: Annotated[UserManagementService, Depends(get_user_service)],
+#                                       current_user: db_User = Depends(get_current_admin)):
+#     if data.new_email:
+#         if not data.current_password:
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="Current password is required to update email or password",
+#             )
+#         if not check_password(data.current_password, current_user.password):
+#             raise HTTPException(
+#                 status_code=401,
+#                 detail="Current password verification failed",
+#             )
 
-    user_obj = await user_service.change_personal_information(data, current_user)
-    return {"status": "ok","action":"Login Required" ,"user": {"email": user_obj.email, "name": user_obj.name}}
+#     user_obj = await user_service.change_personal_information(data, current_user)
+#     return {"status": "ok","action":"Login Required" ,"user": {"email": user_obj.email, "name": user_obj.name}}
+
 
 #Admin can modify user roles and active statuses
 @router_user_management.patch("/modify_user_status/")
@@ -57,3 +58,10 @@ async def assign_user(assignment:CreateAssignUser,user_service: Annotated[UserMa
     """User to be assigned to a project and given a task."""
     assigned_result= await user_service.assign_user(assignment)
     return assigned_result
+
+@router_user_management.get("/get_all_users")
+async def assign_user(user_service: Annotated[UserManagementService,Depends(get_user_service)]
+                      ,current_user: db_User = Depends(get_current_user)):
+    """Get All Users"""
+    all_users=await user_service.get_all_users()    
+    return all_users

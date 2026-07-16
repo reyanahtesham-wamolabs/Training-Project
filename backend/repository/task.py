@@ -1,102 +1,84 @@
 from __future__ import annotations
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from schema.task import Task as db_task
-from dependencies.Authorization import get_current_user, get_current_admin
-from models.task_models import Task,TaskCreation,TaskUpdate
-from schema.user_models import User as db_User
-from fastapi import HTTPException,Depends
 from sqlalchemy.orm import selectinload
 
+from schema.task import Task as db_task
+from models.task_models import Task, TaskCreation, TaskUpdate
+
+
 class TaskCrud:
+
     @staticmethod
-    async def add_task(data: TaskCreation, session: AsyncSession):
+    async def add_task(data: TaskCreation, session: AsyncSession) -> db_task:
         complete_task = Task(**data.model_dump())
         created_task = db_task(**complete_task.model_dump())
-        try:
-            session.add(created_task)
-            await session.commit()
-            return created_task
-        except SQLAlchemyError:
-            await session.rollback()
-            raise
-    
+        session.add(created_task)
+        await session.commit()
+        await session.refresh(created_task)
+        return created_task
+
     @staticmethod
-    async def get_task_by_name(task_name:str,project_id:str,session:AsyncSession):
-        stmt = select(db_task).where(db_task.name == task_name).where(db_task.project_id==project_id)
+    async def get_task_by_name(task_name: str, project_id: str, session: AsyncSession) -> db_task | None:
+        stmt = select(db_task).where(db_task.name == task_name).where(db_task.project_id == project_id)
         result = await session.execute(stmt)
-        userObj=result.scalar_one_or_none()
-        return userObj
-
+        return result.scalar_one_or_none()
 
     @staticmethod
-    async def delete_task(task_id: str,session:AsyncSession):
-        try:
-            task=await session.get(db_task,task_id)
-            if task is None:
-                raise HTTPException(status_code=404, detail="Task not found")
-            await session.delete(task)
-            await session.commit()
-            return {"message":"delete successful"}
-        except SQLAlchemyError:
-            await session.rollback()
-            raise
-    @staticmethod
-    async def update_task(data:TaskUpdate,session:AsyncSession):
-        try:
-            task=await session.get(db_task,data.id)
-            if task is None:
-                raise HTTPException(status_code=404, detail="Task not found")
-            update_data = data.model_dump(
-                exclude_unset=True,
-                exclude={"id"},
-            )
-            for field, value in update_data.items():
-                setattr(task, field, value)
-            await session.commit()
-            return task
+    async def get_task_by_id(task_id: str, session: AsyncSession) -> db_task | None:
+        return await session.get(db_task, task_id)
 
-        except SQLAlchemyError:
-            await session.rollback()
-            raise
+    @staticmethod
+    async def delete_task(task_id: str, session: AsyncSession) -> bool:
+        task = await session.get(db_task, task_id)
+        if task is None:
+            return False
+        await session.delete(task)
+        await session.commit()
+        return True
+
+    @staticmethod
+    async def update_task(data: TaskUpdate, session: AsyncSession) -> db_task | None:
+        task = await session.get(db_task, data.id)
+        if task is None:
+            return None
+
+        update_data = data.model_dump(exclude_unset=True, exclude={"id"})
+        for field, value in update_data.items():
+            setattr(task, field, value)
+
+        await session.commit()
+        await session.refresh(task)
+        return task
 
     @staticmethod
     async def get_all_tasks(session: AsyncSession):
-        try:
-            stmt = (select(db_task))
-            result = await session.execute(stmt)
-            tasks = result.scalars().all()
-            return tasks
-        except SQLAlchemyError:
-            raise
+        stmt = select(db_task)
+        result = await session.execute(stmt)
+        return result.scalars().all()
 
     @staticmethod
-    async def add_prerequisite(prerequisite_id: str,dependant_id: str,session: AsyncSession,):
-        if prerequisite_id == dependant_id:
-            raise ValueError("Task cannot depend on itself")
-        try:
-            stmt = (
-                select(db_task)
-                .options(selectinload(db_task.dependants))
-                .where(db_task.id == prerequisite_id)
-            )
-            result = await session.execute(stmt)
-            prerequisite = result.scalar_one()
-            stmt = (
-                select(db_task)
-                .options(selectinload(db_task.prerequisites))
-                .where(db_task.id == dependant_id)
-            )
-            result2 = await session.execute(stmt)
-            dependant = result2.scalar_one()
+    async def add_prerequisite(prerequisite_id: str, dependant_id: str, session: AsyncSession) -> bool:
+        """Returns False if either task doesn't exist, True on success."""
+        stmt = (
+            select(db_task)
+            .options(selectinload(db_task.dependants))
+            .where(db_task.id == prerequisite_id)
+        )
+        result = await session.execute(stmt)
+        prerequisite = result.scalar_one_or_none()
 
-            if prerequisite is None or dependant is None:
-                raise ValueError("Task not found")
-            prerequisite.dependants.append(dependant)
-            await session.commit()
-        except SQLAlchemyError:
-            await session.rollback()
-            raise
+        stmt = (
+            select(db_task)
+            .options(selectinload(db_task.prerequisites))
+            .where(db_task.id == dependant_id)
+        )
+        result2 = await session.execute(stmt)
+        dependant = result2.scalar_one_or_none()
 
+        if prerequisite is None or dependant is None:
+            return False
 
+        prerequisite.dependants.append(dependant)
+        await session.commit()
+        return True

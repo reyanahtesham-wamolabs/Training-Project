@@ -19,3 +19,4 @@ class User(Base):
     privacy_level:Mapped[Levels]=mapped_column(sa_enum(Levels, name="Levels"))
     soft_delete:Mapped[bool]
     assignments:Mapped[List["Assignment"]]=relationship(back_populates="user")
+

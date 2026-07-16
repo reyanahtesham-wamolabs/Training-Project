@@ -1,82 +1,71 @@
-from __future__ import annotations
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
-from schema.project import Project as db_project, Tag as db_tag
-from models.project_models import Project,Tag
+from sqlalchemy.orm import selectinload
+from schema.project import Project as db_project,Tag as db_tag
+
 
 class ProjectRepo:
 
     @staticmethod
-    async def create_project(data: Project, session: AsyncSession):
-        project=db_project(id=data.id,name=data.name,start_date=data.start_date,end_date=data.end_date,archived=data.archived
-                        ,category=data.category,status=data.status,soft_delete=data.soft_delete)        
-        try:
-            session.add(project)
-            await session.commit()
-            return project
-        except SQLAlchemyError:
-            await session.rollback()
-            raise
+    async def create_project(project: db_project, session: AsyncSession) -> db_project:
+        session.add(project)
+        await session.commit()
+        await session.refresh(project)
+        return project
 
     @staticmethod
-    async def change_project_archive(project_id:str,archive_status:bool,session:AsyncSession):
-        try:
-            project=await session.get(db_project,project_id)
-            project.archived=archive_status
-            await session.commit()
-            return project
-        except SQLAlchemyError:
-            await session.rollback()
-            raise
+    async def delete_project(project_id:str , session: AsyncSession):
+        project=session.get(project_id)
+        if project is None:
+            return False
+        await session.delete(project)
+        await session.commit()
+        return True
+
 
     @staticmethod
-    async def get_project_by_id(project_id:str,session:AsyncSession):
-        try:
-            project=await session.get(db_project,project_id)
-            return project
-        except SQLAlchemyError:
-            await session.rollback()
-            raise
+    async def change_project_archive(
+        project_id: str, archive_status: bool, session: AsyncSession
+    ) -> db_project | None:
+        project = await session.get(db_project, project_id)
+        if project is None:
+            return None
+        project.archived = archive_status
+        await session.commit()
+        await session.refresh(project)
+        return project
 
     @staticmethod
-    async def get_project_by_name(project_name:str,session:AsyncSession):
+    async def get_project_by_id(project_id: str, session: AsyncSession) -> db_project | None:
+        return await session.get(db_project, project_id)
+
+    @staticmethod
+    async def get_project_by_name(project_name: str, session: AsyncSession) -> db_project | None:
         stmt = select(db_project).where(db_project.name == project_name)
         result = await session.execute(stmt)
-        userObj=result.scalar_one_or_none()
-        return userObj
+        return result.scalar_one_or_none()
 
     @staticmethod
-    async def create_tag(data : Tag,session:AsyncSession):
-        tag=db_tag(id=data.id,name=data.name)
-        try:
-            session.add(tag)
-            await session.commit()
-            return tag
-        except SQLAlchemyError:
-            await session.rollback()
-            raise
-    @staticmethod
-    async def get_all_projects(session:AsyncSession):
-        try:
-            stmt=(select(db_project).options(selectinload(db_project.tags)))
-            result=await session.execute(stmt)
-            tags=result.scalars().all()
-            return tags
-        except SQLAlchemyError:
-            await session.rollback()
-            raise
+    async def create_tag(tag: db_tag, session: AsyncSession) -> db_tag:
+        session.add(tag)
+        await session.commit()
+        await session.refresh(tag)
+        return tag
 
     @staticmethod
-    async def get_all_tags(session:AsyncSession):
-        try:
-            stmt=(select(db_tag).options(selectinload(db_tag.projects)))
-            result=await session.execute(stmt)
-            tags=result.scalars().all()
-            return tags
-        except SQLAlchemyError:
-            await session.rollback()
-            raise
+    async def get_tag_by_name(tag_name: str, session: AsyncSession) -> db_tag | None:
+        stmt = select(db_tag).where(db_tag.name == tag_name)
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
 
+    @staticmethod
+    async def get_all_projects(session: AsyncSession):
+        stmt = select(db_project).options(selectinload(db_project.tags))
+        result = await session.execute(stmt)
+        return result.scalars().all()
 
+    @staticmethod
+    async def get_all_tags(session: AsyncSession):
+        stmt = select(db_tag).options(selectinload(db_tag.projects))
+        result = await session.execute(stmt)
+        return result.scalars().all()
