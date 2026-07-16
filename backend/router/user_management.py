@@ -55,4 +55,5 @@ async def change_privacy(new_level:UserPrivacy,user_service: Annotated[UserManag
 async def assign_user(assignment:CreateAssignUser,user_service: Annotated[UserManagementService,Depends(get_user_service)]
                       ,current_user: db_User = Depends(get_current_user)):
     """User to be assigned to a project and given a task."""
-    return user_service.assign_user(assignment)
+    assigned_result= await user_service.assign_user(assignment)
+    return assigned_result

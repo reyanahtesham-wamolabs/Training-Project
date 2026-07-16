@@ -13,7 +13,7 @@ router_task = APIRouter()
 async def create_task_route(task_data: TaskCreation,current_user: db_User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):
     #roles based access and jwt auth in other branch. Will be added later
     task=await TaskCrud.add_task(task_data,session)
-    return {"status":"Task Created Successfully","Project ID":task.id}
+    return {"status":"Task Created Successfully","Task ID":task.id}
 
 @router_task.delete("/delete_task/")
 async def delete_task_route(task_id: str,current_user: db_User = Depends(get_current_user), session: AsyncSession = Depends(get_db)):

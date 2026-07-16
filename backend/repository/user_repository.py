@@ -25,7 +25,7 @@ async def get_user_by_id(id: str, session: AsyncSession) -> db_User | None:
 async def get_user_by_name(name:str,session:AsyncSession)-> db_User|None:
     stmt = select(db_User).where(db_User.name == name)
     result = await session.execute(stmt)
-    userObj=result.scalar_one_or_none()
+    userObj=result.scalars().all()
     return userObj
 
 
@@ -53,12 +53,11 @@ async def update_user(user: db_User, session: AsyncSession) -> UserResponse:
         await session.rollback()
         raise
 
-async def assign_user(user_id:str,task_id:str,project_id:str,session:AsyncSession):
+async def assign_user(assignment_id:str,user_id:str,project_id:str,task_id:str,role:str,session:AsyncSession):
     try:
-        assignment=assign_user(user_id=user_id,task_id=task_id,project_id=project_id)
-        await session.add(assignment)
+        assignment=db_Assignment(id=assignment_id,user_id=user_id,task_id=task_id,project_id=project_id,role=role)
+        session.add(assignment)
         await session.commit()
-        await session.refresh(assignment)
         return assignment
     except SQLAlchemyError:
         await session.rollback()

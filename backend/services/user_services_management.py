@@ -1,6 +1,6 @@
 from __future__ import annotations
 from helper_functions.hashing import hash_password, MAX_PASSWORD_LENGTH
-from repository.user_repository import get_user_by_email, save_user, update_user,get_user_by_name,assign_user as repo_assign_user
+from repository.user_repository import get_user_by_email, save_user, update_user,assign_user as repo_assign_user
 from repository.project import ProjectRepo
 from pydantic import EmailStr
 from schema.enums import Roles, Levels
@@ -76,13 +76,12 @@ class UserManagementService:
 
     async def assign_user(self,assignment_data:CreateAssignUser):
         assignment=AssignUser(**assignment_data.model_dump())
-        user = await get_user_by_email(assignment.user_name, self.session)
+        user = await get_user_by_email(assignment.user_email, self.session)
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with email '{assignment.user_name}' not found",
+                detail=f"User with email '{assignment.user_email}' not found",
             )
-
         project = await ProjectRepo.get_project_by_name(assignment.project_name, self.session)
         if project is None:
             raise HTTPException(
@@ -90,8 +89,10 @@ class UserManagementService:
                 detail=f"Project '{assignment.project_name}' not found",
             )
         try:
-            return await repo_assign_user(user.id, project.id, assignment.task_id, self.session)
-        except IntegrityError:
+            assigned_result=await repo_assign_user(assignment.id,user.id, project.id, assignment.task_id,assignment.role, self.session)
+            return assigned_result
+        except IntegrityError as e:
+            print(e.orig)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This assignment already exists or violates a constraint",
