@@ -1,6 +1,6 @@
 from pydantic import  EmailStr, BaseModel,field_validator,Field,ConfigDict
 import uuid
-from schema.enums import Roles,Levels
+from schema.enums import Roles,Levels,AssignmentRole
 class User(BaseModel):
     name : str
     email: str 
@@ -38,3 +38,15 @@ class UserResponse(BaseModel):
 
 class UserPrivacy(BaseModel):
     level:Levels
+
+class CreateAssignUser(BaseModel):
+    user_Email:EmailStr
+    task_id:str
+    project_name:str
+    role:AssignmentRole
+class AssignUser(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
+    user_Email:EmailStr
+    task_id:str
+    project_name:str
+    role:AssignmentRole

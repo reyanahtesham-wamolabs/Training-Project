@@ -21,6 +21,15 @@ class TaskCrud:
         except SQLAlchemyError:
             await session.rollback()
             raise
+    
+    @staticmethod
+    async def get_task_by_name(task_name:str,project_id:str,session:AsyncSession):
+        stmt = select(db_task).where(db_task.name == task_name).where(db_task.project_id==project_id)
+        result = await session.execute(stmt)
+        userObj=result.scalar_one_or_none()
+        return userObj
+
+
     @staticmethod
     async def delete_task(task_id: str,session:AsyncSession):
         try:

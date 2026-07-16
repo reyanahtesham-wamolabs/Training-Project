@@ -26,7 +26,7 @@ project_tag_association = Table(
 class Project(Base):
     __tablename__ = "Project"
     id:Mapped[str] = mapped_column(primary_key=True)
-    name:Mapped[str]
+    name:Mapped[str]= mapped_column(unique=True,nullable=False)
     archived:Mapped[bool]
     soft_delete:Mapped[bool]
     start_date:Mapped[date]

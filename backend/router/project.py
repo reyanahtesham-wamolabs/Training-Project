@@ -29,4 +29,3 @@ async def get_all_tags(current_user: db_User = Depends(get_current_user),session
 async def archive_project_route(project:ArchiveProject,current_admin: db_User = Depends(get_current_admin),session:AsyncSession=Depends(get_db)):
     changed_project=ProjectRepo.change_project_archive(project.id,project.archive,session)
     return {"status":"Change Successful","Project ID":changed_project.id,"Archived":changed_project.archived}
-

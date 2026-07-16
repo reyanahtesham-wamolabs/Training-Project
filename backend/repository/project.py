@@ -41,6 +41,13 @@ class ProjectRepo:
             raise
 
     @staticmethod
+    async def get_project_by_name(project_name:str,session:AsyncSession):
+        stmt = select(db_project).where(db_project.name == project_name)
+        result = await session.execute(stmt)
+        userObj=result.scalar_one_or_none()
+        return userObj
+
+    @staticmethod
     async def create_tag(data : Tag,session:AsyncSession):
         tag=db_tag(id=data.id,name=data.name)
         try:
