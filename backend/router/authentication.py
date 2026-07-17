@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends,HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from models.user_model import User,CreateUser,UserLogin
+from models.user_model import User,CreateUser,UserLogin,ChangePassword
 from models.tokens import RefreshToken
 from repository.user_auth import UserCrud
 from services.auth_services import UserAuthenticationServices
 from dependencies.database import get_db
 from services.JWT_services import TokenFunctionality
-
+from schema.user_models import User as db_User
+from dependencies.Authorization import get_current_user, get_current_admin
 router = APIRouter()
 
 @router.post("/signup_user/")
@@ -26,3 +27,15 @@ async def refresh(token:RefreshToken,session:AsyncSession=Depends(get_db)):
         raise HTTPException(status_code=401, detail="Login required")
      return result
 
+    # async def password_change(user_data: ChangePassword, current_user, session):
+
+@router.post("/change_password/")
+async def change_password(user_data:ChangePassword,session:AsyncSession=Depends(get_db),current_user: db_User = Depends(get_current_user)):
+    result =await UserAuthenticationServices.password_change(user_data,current_user,session)
+    return result
+    # async def check_otp(otp_code: str, current_user, session):
+
+@router.post("/verify_otp")
+async def verify_otp(opt_code:str,session:AsyncSession=Depends(get_db),current_user: db_User = Depends(get_current_user)):
+    result =await UserAuthenticationServices.check_otp(opt_code,current_user,session)
+    return result

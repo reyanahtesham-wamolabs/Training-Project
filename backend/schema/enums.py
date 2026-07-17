@@ -3,6 +3,8 @@ from enum import Enum
 class Roles(Enum):
     admin="admin"
     member="member"
+    Member="Member"
+    Admin="Admin"
 class Levels(Enum):
     low="low"
     medium="medium"
@@ -19,3 +21,7 @@ class Categories(Enum):
     US_based="US_based"
     Pak_profile="Pak_profile"
     inhouse="inhouse"
+class AssignmentRole(Enum):
+    team_lead="team_lead"
+    manager="manager"
+    developer="developer"

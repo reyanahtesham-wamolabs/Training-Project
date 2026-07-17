@@ -80,7 +80,7 @@ class  TokenFunctionality:
     async def create_refresh_token(user_id: str, session) -> str:
         exists=await tokenCRUD.get_valid_refresh_token(user_id,session)
         if exists:
-            return exists
+            return exists.token
         expire_time=datetime.now(UTC) + timedelta(days=int(REFRESH_TOKEN_EXPIRE_DAYS))
         expire_time = expire_time.replace(tzinfo=None)
         payload = {

@@ -1,30 +1,27 @@
-from pydantic import  EmailStr, BaseModel,field_validator,Field,ConfigDict
+from pydantic import  EmailStr, BaseModel,field_validator,Field,ConfigDict,AfterValidator
 import uuid
-from schema.enums import Roles,Levels
+from schema.enums import Roles,Levels,AssignmentRole
+from typing import Annotated
+import re
+from helper_functions.validators import email_value,password_value,non_empty_value
 class User(BaseModel):
-    name : str
-    email: str 
-    password:str
+    name : non_empty_value
+    email: email_value 
+    password:password_value
     role:Roles
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
     
-
-
 class CreateUser(BaseModel):
-    email:EmailStr
-    password:str=Field(pattern=r"^[A-Za-z0-9_]{3,20}$")
-    name:str
+    email:email_value
+    password:password_value
+    name:non_empty_value
     role:Roles
-    @field_validator("email")
-    @classmethod
-    def emailValidator(cls,value):
-        if value.rsplit("@", 1)[1].lower() != "wamolabs.com":
-            raise ValueError("the email must include '@wamolabs.com'")
-        return value
-    
+class ChangePassword(BaseModel):
+    current_password:non_empty_value
+    new_password:password_value    
 class UserLogin(BaseModel):
     email:str
-    password:str 
+    password:str
 
 class UserResponse(BaseModel):
     id:str
@@ -38,3 +35,15 @@ class UserResponse(BaseModel):
 
 class UserPrivacy(BaseModel):
     level:Levels
+
+class CreateAssignUser(BaseModel):
+    user_email:email_value
+    task_id:non_empty_value
+    project_name:non_empty_value
+    role:AssignmentRole
+class AssignUser(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
+    user_email:email_value
+    task_id:non_empty_value
+    project_name:non_empty_value
+    role:AssignmentRole

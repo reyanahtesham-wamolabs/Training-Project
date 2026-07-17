@@ -26,13 +26,14 @@ project_tag_association = Table(
 class Project(Base):
     __tablename__ = "Project"
     id:Mapped[str] = mapped_column(primary_key=True)
-    name:Mapped[str]
+    name:Mapped[str]= mapped_column(unique=True,nullable=False)
     archived:Mapped[bool]
     soft_delete:Mapped[bool]
     start_date:Mapped[date]
     end_date:Mapped[date]
     category:Mapped[Categories]=mapped_column(sa_enum(Categories))
     status:Mapped[ProjectStatus]=mapped_column(sa_enum(ProjectStatus))
+    assignments:Mapped[List["Assignment"]]=relationship(back_populates="project")
     tasks:Mapped[List["Task"]]=relationship(back_populates="parent_project")
     tags: Mapped[List["Tag"]] = relationship(
             secondary=project_tag_association,

@@ -1,10 +1,11 @@
 from __future__ import annotations
-from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
-from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import mapped_column,relationship
 from schema.enums import Roles,Levels
 from sqlalchemy import Enum as sa_enum
 from .baseclass import Base
+from typing import List
+
 
 
 class User(Base):
@@ -17,4 +18,5 @@ class User(Base):
     password:Mapped[str]
     privacy_level:Mapped[Levels]=mapped_column(sa_enum(Levels, name="Levels"))
     soft_delete:Mapped[bool]
+    assignments:Mapped[List["Assignment"]]=relationship(back_populates="user")
 
