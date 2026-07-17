@@ -1,21 +1,29 @@
 from __future__ import annotations
 from helper_functions.hashing import hash_password, MAX_PASSWORD_LENGTH
-from repository.user_repository import get_user_by_email, save_user, update_user,assign_user as repo_assign_user,get_all_users as get_users
+from repository.user_repository import (
+    get_user_by_email,
+    save_user,
+    update_user,
+    assign_user as repo_assign_user,
+    get_all_users as get_users,
+)
 from repository.project import ProjectRepo
 from pydantic import EmailStr
 from schema.enums import Roles, Levels
 from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from models.user_modification import ChangeStatus
-from models.user_model import AssignUser,CreateAssignUser
+from models.user_model import AssignUser, CreateAssignUser,ChangeUserRole
 from repository.task import TaskCrud
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
+
 class UserManagementService:
-    def __init__(self,db_session):
-        self.session=db_session
-    async def change_personal_information(self,data, current_user):
+    def __init__(self, db_session):
+        self.session = db_session
+
+    async def change_personal_information(self, data, current_user):
         # data is expected to have email, name?, new_email?, password?
         user = await get_user_by_email(current_user.email, self.session)
         if user is None:
@@ -41,20 +49,23 @@ class UserManagementService:
             return await update_user(user, self.session)
         return user
 
-
-    async def modify_status(self,data: ChangeStatus, current_admin):
+    async def modify_status(self, data: ChangeStatus, current_admin):
         user = await get_user_by_email(data.email, self.session)
         if user is None:
             raise HTTPException(status_code=404, detail="User not found")
 
         if data.role is not None:
             try:
-                user.role = Roles(data.role) if not isinstance(data.role, Roles) else data.role
+                user.role = (
+                    Roles(data.role) if not isinstance(data.role, Roles) else data.role
+                )
             except ValueError:
                 try:
                     user.role = Roles[data.role]
                 except KeyError:
-                    raise HTTPException(status_code=400, detail="invalid role value") from None
+                    raise HTTPException(
+                        status_code=400, detail="invalid role value"
+                    ) from None
 
         if data.active is not None:
             user.active = bool(data.active)
@@ -63,35 +74,50 @@ class UserManagementService:
 
     async def soft_delete_user(self, current_user):
         if current_user.soft_delete:
-            current_user.soft_delete=False
+            current_user.soft_delete = False
         else:
             current_user.soft_delete = True
         return await update_user(current_user, self.session)
 
-    async def change_privacy(self,privacy_level, current_user):
+    async def change_privacy(self, privacy_level, current_user):
         current_user.privacy_level = privacy_level.level
         return await update_user(current_user, self.session)
+    
+    async def change_user_role(self,user:ChangeUserRole):
+        current_user=get_user_by_email(user.user_email)
+        return await update_user(current_user,self.session)
+        
     async def get_all_users(self):
         return get_users(self.session)
-    async def assign_user(self,assignment_data:CreateAssignUser):
-        assignment=AssignUser(**assignment_data.model_dump())
+
+    async def assign_user(self, assignment_data: CreateAssignUser):
+        assignment = AssignUser(**assignment_data.model_dump())
         user = await get_user_by_email(assignment.user_email, self.session)
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with email '{assignment.user_email}' not found",
             )
-        project = await ProjectRepo.get_project_by_name(assignment.project_name, self.session)
+        project = await ProjectRepo.get_project_by_name(
+            assignment.project_name, self.session
+        )
         if project is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Project '{assignment.project_name}' not found",
             )
-        task=await TaskCrud.get_task_by_id(assignment.task_id,self.session)
-        if not task.project_id==project.id:
-            raise "Task must be a part of the project" 
+        task = await TaskCrud.get_task_by_id(assignment.task_id, self.session)
+        if not task.project_id == project.id:
+            raise "Task must be a part of the project"
         try:
-            assigned_result=await repo_assign_user(assignment.id,user.id, project.id, assignment.task_id,assignment.role, self.session)
+            assigned_result = await repo_assign_user(
+                assignment.id,
+                user.id,
+                project.id,
+                assignment.task_id,
+                assignment.role,
+                self.session,
+            )
             return assigned_result
         except IntegrityError as e:
             print(e.orig)

@@ -12,7 +12,7 @@ from schema.user_models import User as db_user
 class UserAuthenticationServices:
     async def user_signup(user_data:CreateUser,session):
         user_data.password=hash_password(user_data.password)
-        user_complete_data=User(name=user_data.name,role=user_data.role,password=user_data.password,email=user_data.email)
+        user_complete_data=User(name=user_data.name,role="member",password=user_data.password,email=user_data.email)
         created_user = await UserCrud.add_user(user_complete_data, session)
         return {
     "status_code": status.HTTP_201_CREATED,

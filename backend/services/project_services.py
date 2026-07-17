@@ -4,8 +4,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from repository.project import ProjectRepo
 from schema.project import Project as db_project, Tag as db_tag
+from schema.user_models import User as db_user
 from models.project_models import CreateProject, CreateTag
-
+from repository.user_repository import get_user_assignment
 
 class ProjectService:
 
@@ -76,10 +77,30 @@ class ProjectService:
 
     @staticmethod
     async def archive_project(
-        project_id: str, archive_status: bool, session: AsyncSession
+        current_user:db_user,project_id: str, archive_status: bool, session: AsyncSession
     ) -> db_project:
+        project=await ProjectRepo.get_project_by_id(project_id,session)
+        if project is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project with id '{project_id}' not found",
+            )
+
         try:
-            project = await ProjectRepo.change_project_archive(
+            assignment=await get_user_assignment(current_user.id,project_id)
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not assigned to project",
+            ) from e
+
+        if not assignment.role=="project_admin":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"User is not autherized to archive project",
+            )
+        try:
+            result = await ProjectRepo.change_project_archive(
                 project_id, archive_status, session
             )
         except SQLAlchemyError as e:
@@ -88,10 +109,5 @@ class ProjectService:
                 detail="Failed to update project due to a database error",
             ) from e
 
-        if project is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Project with id '{project_id}' not found",
-            )
 
-        return project
+        return result

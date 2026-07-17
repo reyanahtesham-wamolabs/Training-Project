@@ -7,7 +7,7 @@ from services.auth_services import UserAuthenticationServices
 from dependencies.database import get_db
 from services.JWT_services import TokenFunctionality
 from schema.user_models import User as db_User
-from dependencies.Authorization import get_current_user, get_current_admin
+from dependencies.authorization import get_current_user, get_current_admin
 router = APIRouter()
 
 @router.post("/signup_user/")

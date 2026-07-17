@@ -15,7 +15,6 @@ class CreateUser(BaseModel):
     email:email_value
     password:password_value
     name:non_empty_value
-    role:Roles
 class ChangePassword(BaseModel):
     current_password:non_empty_value
     new_password:password_value    
@@ -47,3 +46,6 @@ class AssignUser(BaseModel):
     task_id:non_empty_value
     project_name:non_empty_value
     role:AssignmentRole
+class ChangeUserRole(BaseModel):
+    user_email:email_value
+    user_role:Roles

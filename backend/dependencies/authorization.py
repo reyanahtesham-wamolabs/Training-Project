@@ -68,9 +68,24 @@ async def get_current_admin(
     Verifies that the current user has admin privileges.
     """
 
-    if current_user.role != Roles.Admin:
+    if current_user.role != Roles.admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required",
+        )
+    return current_user
+
+
+async def get_current_manager(
+    current_user: db_User = Depends(get_current_user),
+) -> db_User:
+    """
+    Verifies that the current user has admin privileges.
+    """
+
+    if not current_user.role == Roles.manager or not current_user.role==Roles.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Manager privileges required",
         )
     return current_user
