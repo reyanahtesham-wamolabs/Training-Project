@@ -4,6 +4,7 @@ class Roles(Enum):
     admin="admin"
     manager="manager"
     member="member"
+    Member="Member"
 class Levels(Enum):
     low="low"
     medium="medium"

@@ -15,6 +15,7 @@ class User(Base):
     role:Mapped[Roles] = mapped_column(sa_enum(Roles))
     active:Mapped[bool]
     email:Mapped[str] = mapped_column(unique=True,nullable=False)
+    verified:Mapped[bool] = mapped_column(default=False)
     password:Mapped[str]
     privacy_level:Mapped[Levels]=mapped_column(sa_enum(Levels, name="Levels"))
     soft_delete:Mapped[bool]
