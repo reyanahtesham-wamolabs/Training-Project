@@ -3,6 +3,8 @@ from enum import Enum
 class Roles(Enum):
     admin="admin"
     member="member"
+    Member="Member"
+    Admin="Admin"
 class Levels(Enum):
     low="low"
     medium="medium"

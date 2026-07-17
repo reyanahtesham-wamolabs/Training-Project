@@ -11,7 +11,7 @@ from models.user_model import AssignUser,CreateAssignUser
 from repository.task import TaskCrud
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-f
+
 class UserManagementService:
     def __init__(self,db_session):
         self.session=db_session
