@@ -5,7 +5,6 @@ from  schema.user import User as db_User
 from services.JWT_services import TokenFunctionality
 from dependencies.database import get_db
 from repository.user_repository import get_user_by_id
-from models.user_model import UserResponse
 from schema.enums import Roles
 security = HTTPBearer()
 
@@ -13,7 +12,7 @@ async def get_current_user(
     response: Response,
     token: str = Depends(security),
     session: AsyncSession = Depends(get_db),
-) -> UserResponse:
+) -> db_User:
 
     try:
         token_result = await TokenFunctionality.ensure_valid_access_token(token.credentials, session)
@@ -50,6 +49,12 @@ async def get_current_user(
     user = await get_user_by_id(user_id, session)
 
     if user is None :
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account unavailable",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not user.active or user.soft_delete:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Account unavailable",

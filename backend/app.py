@@ -3,6 +3,7 @@ from router.project import router_project
 from router.task import router_task
 from router.team import router_team
 from router.notification import router_notification
+from router.comment import router_comment
 from fastapi import FastAPI
 from router.user_management import router_user_management
 app = FastAPI()
@@ -15,4 +16,5 @@ app.include_router(router_task, prefix="/task",tags=["Task"])
 app.include_router(router_user_management,prefix="/User",tags=["User"])
 app.include_router(router_team,prefix="/Team",tags=["Tean"])
 app.include_router(router_notification,prefix="/Notification",tags=["Notification"])
+app.include_router(router_comment, prefix="/comment", tags=["Comment"])
 
