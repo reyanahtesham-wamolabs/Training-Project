@@ -70,7 +70,15 @@ class UserManagementService:
         if data.active is not None:
             user.active = bool(data.active)
 
-        return await update_user(user, self.session)
+        result = await update_user(user, self.session)
+        from services.notification_service import NotificationService
+        await NotificationService.notify_user(
+            user_id=user.id,
+            subject="Account Status Updated",
+            text=f"Your account status has been updated by an admin.",
+            session=self.session,
+        )
+        return result
 
     async def soft_delete_user(self, current_user):
         if current_user.soft_delete:
@@ -88,7 +96,7 @@ class UserManagementService:
         return await update_user(current_user,self.session)
         
     async def get_all_users(self):
-        return get_users(self.session)
+        return await get_users(self.session)
 
     async def assign_user(self, assignment_data: CreateAssignUser):
         assignment = AssignUser(**assignment_data.model_dump())
@@ -117,6 +125,15 @@ class UserManagementService:
                 assignment.task_id,
                 assignment.role,
                 self.session,
+            )
+            from services.notification_service import NotificationService
+            await NotificationService.notify_user(
+                user_id=user.id,
+                subject="Assigned to Task",
+                text=f"You have been assigned to a task in project '{project.name}'.",
+                session=self.session,
+                related_task_id=assignment.task_id,
+                related_project_id=project.id,
             )
             return assigned_result
         except IntegrityError as e:

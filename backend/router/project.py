@@ -9,7 +9,7 @@ from dependencies.authorization import (
 )
 from dependencies.database import get_db
 from models.project_models import CreateProject, CreateTag, ArchiveProject
-from schema.user_models import User as db_User
+from  schema.user import User as db_User
 
 router_project = APIRouter()
 
@@ -20,7 +20,7 @@ async def create_project(
     current_user: db_User = Depends(get_current_manager),
     session: AsyncSession = Depends(get_db),
 ):
-    project = await ProjectService.create_project(data, session)
+    project = await ProjectService.create_project(data, current_user, session)
     return {"status": "Project Created Successfully", "Project ID": project.id}
 
 

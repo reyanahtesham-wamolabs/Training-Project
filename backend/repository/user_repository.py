@@ -3,8 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import inspect
-from schema.user_models import User as db_User
-from schema.Assignment import Assignment as db_Assignment
+from  schema.user import User as db_User
+from  schema.assignment import Assignment as db_Assignment
 from models.user_model import UserResponse
 
 

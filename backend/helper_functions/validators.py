@@ -5,9 +5,9 @@ import re
 
 def check_email(value:str):
     EMAIL_REGEX = re.compile(
-    r"^[a-zA-Z][a-zA-Z0-9_.+-]*@wamolabs\.com$"
+    r"^[a-zA-Z][a-zA-Z0-9_.+-]*@gmail\.com$"
     )
-    ALLOWED_DOMAIN="wamolabs.com"
+    ALLOWED_DOMAIN="gmail.com"
     ans=value
     value = value.strip().lower()
 

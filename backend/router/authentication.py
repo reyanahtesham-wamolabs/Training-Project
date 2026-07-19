@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user_model import User, CreateUser, UserLogin, ChangePassword,ChangeEmail,ChangeName
-from models.tokens import RefreshToken
+from models.token_models import RefreshToken
 from repository.user_auth import UserCrud
 from services.auth_services import UserAuthenticationServices
 from dependencies.database import get_db
 from services.JWT_services import TokenFunctionality
-from schema.user_models import User as db_User
+from  schema.user import User as db_User
 from dependencies.authorization import get_current_user, get_current_admin
 
 router = APIRouter()
