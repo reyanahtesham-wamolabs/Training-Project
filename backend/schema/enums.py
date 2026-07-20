@@ -35,6 +35,7 @@ class ActivityActionType(Enum):
     update_project = "update_project"
     archive_project = "archive_project"
     delete_project = "delete_project"
+    create_tag = "create_tag"
     create_task = "create_task"
     update_task = "update_task"
     delete_task = "delete_task"

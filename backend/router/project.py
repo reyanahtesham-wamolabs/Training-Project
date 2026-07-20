@@ -28,7 +28,7 @@ async def create_tag(
     current_user: db_User = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
 ):
-    tag = await project_service.create_tag(data)
+    tag = await project_service.create_tag(data, current_user)
     return {"status": "Tag Created Successfully", "Tag ID": tag.id}
 
 @router_project.get("/get_all_tags/")

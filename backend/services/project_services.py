@@ -7,6 +7,8 @@ from schema.project import Project as db_project, Tag as db_tag
 from schema.user import User as db_user
 from models.project_models import CreateProject, CreateTag
 from repository.user_repository import get_user_assignment
+from services.activity_log_services import ActivityLogService
+from schema.enums import ActivityActionType
 
 class ProjectService:
     def __init__(self, db_session: AsyncSession):
@@ -33,8 +35,7 @@ class ProjectService:
 
         try:
             created_project = await ProjectRepo.create_project(project, self.session)
-            from services.activity_log_services import ActivityLogService
-            from schema.enums import ActivityActionType
+
             await ActivityLogService.log_activity(
                 session=self.session,
                 modified_by_user_id=current_user.id,
@@ -57,7 +58,7 @@ class ProjectService:
                 detail="Failed to create project due to a database error",
             ) from e
 
-    async def create_tag(self, data: CreateTag) -> db_tag:
+    async def create_tag(self, data: CreateTag, current_user: db_user) -> db_tag:
         existing = await ProjectRepo.get_tag_by_name(data.name, self.session)
         if existing is not None:
             raise HTTPException(
@@ -66,7 +67,21 @@ class ProjectService:
             )
         tag = db_tag(id=str(uuid.uuid4()), name=data.name)
         try:
-            return await ProjectRepo.create_tag(tag, self.session)
+            created_tag = await ProjectRepo.create_tag(tag, self.session)
+            await ActivityLogService.log_activity(
+                session=self.session,
+                modified_by_user_id=current_user.id,
+                action_type=ActivityActionType.create_tag,
+                message=f"Tag '{created_tag.name}' created by user '{current_user.name}'"
+            )
+            from services.notification_service import NotificationService
+            await NotificationService.notify_user(
+                user_id=current_user.id,
+                subject="Tag Created",
+                text=f"Tag '{created_tag.name}' has been created successfully.",
+                session=self.session,
+            )
+            return created_tag
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -118,8 +133,6 @@ class ProjectService:
             result = await ProjectRepo.change_project_archive(
                 project_id, archive_status, self.session
             )
-            from services.activity_log_services import ActivityLogService
-            from schema.enums import ActivityActionType
             await ActivityLogService.log_activity(
                 session=self.session,
                 modified_by_user_id=current_user.id,
