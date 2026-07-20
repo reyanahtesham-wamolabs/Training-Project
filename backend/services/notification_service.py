@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from repository.notification_repository import NotificationRepo
 from schema.assignment import Assignment
 from schema.team import TeamMember
-
+from schema.task import Task
 class NotificationService:
 
     @staticmethod
@@ -66,7 +66,7 @@ class NotificationService:
         related_project_id: str | None = None,
         related_message_id: str | None = None,
     ):
-        stmt = select(Assignment.user_id).where(Assignment.project_id == project_id)
+        stmt=select(Assignment.user_id).join(Assignment.task).where(Task.project_id == project_id)
         result = await session.execute(stmt)
         user_ids = [row[0] for row in result.all() if row[0] is not None]
         await NotificationService.notify_users(

@@ -17,6 +17,9 @@ from models.user_model import AssignUser, CreateAssignUser,ChangeUserRole
 from repository.task import TaskCrud
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from schema.team import Team as db_Team, TeamMember as db_TeamMember
+from sqlalchemy import select, exists
+from services.notification_service import NotificationService
 
 
 class UserManagementService:
@@ -24,7 +27,6 @@ class UserManagementService:
         self.session = db_session
 
     async def change_personal_information(self, data, current_user):
-        # data is expected to have email, name?, new_email?, password?
         user = await get_user_by_email(current_user.email, self.session)
         if user is None:
             raise HTTPException(status_code=404, detail="User not found")
@@ -71,13 +73,15 @@ class UserManagementService:
             user.active = bool(data.active)
 
         result = await update_user(user, self.session)
-        from services.notification_service import NotificationService
-        await NotificationService.notify_user(
-            user_id=user.id,
-            subject="Account Status Updated",
-            text=f"Your account status has been updated by an admin.",
-            session=self.session,
-        )
+        try:
+            await NotificationService.notify_user(
+                user_id=user.id,
+                subject="Account Status Updated",
+                text=f"Your account status has been updated by an admin.",
+                session=self.session,
+            )
+        except SQLAlchemyError:
+            pass
         return result
 
     async def soft_delete_user(self, current_user):
@@ -92,15 +96,16 @@ class UserManagementService:
         return await update_user(current_user, self.session)
     
     async def change_user_role(self,user:ChangeUserRole):
-        current_user=get_user_by_email(user.user_email)
+        current_user=await get_user_by_email(user.user_email)
         return await update_user(current_user,self.session)
+        
         
     async def get_all_users(self):
         return await get_users(self.session)
 
     async def assign_user(self, assignment_data: CreateAssignUser):
         assignment = AssignUser(**assignment_data.model_dump())
-        # 1. Resolve the user being assigned
+
         user = await get_user_by_email(assignment.user_email, self.session)
         if user is None:
             raise HTTPException(
@@ -108,7 +113,6 @@ class UserManagementService:
                 detail=f"User with email '{assignment.user_email}' not found",
             )
 
-        # 2. Resolve the task
         task = await TaskCrud.get_task_by_id(assignment.task_id, self.session)
         if task is None:
             raise HTTPException(
@@ -116,9 +120,6 @@ class UserManagementService:
                 detail=f"Task with id '{assignment.task_id}' not found",
             )
 
-        # 3. Check that the user is a member of the project's team
-        from schema.team import Team as db_Team, TeamMember as db_TeamMember
-        from sqlalchemy import select, exists
 
         team_member_exists_stmt = select(
             exists()
@@ -141,7 +142,6 @@ class UserManagementService:
                 ),
             )
 
-        # 4. Create the assignment
         try:
             assigned_result = await repo_assign_user(
                 assignment.id,
@@ -150,7 +150,17 @@ class UserManagementService:
                 assignment.role,
                 self.session,
             )
-            from services.notification_service import NotificationService
+        except SQLAlchemyError:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create assignment due to a database error",
+            )
+        except IntegrityError as e:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This assignment already exists or violates a constraint",
+            )        
+        try:
             await NotificationService.notify_user(
                 user_id=user.id,
                 subject="Assigned to Task",
@@ -160,12 +170,7 @@ class UserManagementService:
                 related_project_id=task.project_id,
             )
             return assigned_result
-        except IntegrityError as e:
-            print(e.orig)
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="This assignment already exists or violates a constraint",
-            )
+
         except SQLAlchemyError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

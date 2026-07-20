@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel,ConfigDict
 from helper_functions.validators import email_value
 
 
@@ -15,8 +15,7 @@ class TeamOut(BaseModel):
     name: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TeamMemberCreate(BaseModel):
@@ -30,8 +29,7 @@ class TeamMemberOut(BaseModel):
     team_id: str
     joined_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MessageCreate(BaseModel):
@@ -46,5 +44,4 @@ class MessageOut(BaseModel):
     content: str
     sent_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

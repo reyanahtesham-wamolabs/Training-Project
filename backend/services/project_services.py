@@ -5,10 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from repository.project import ProjectRepo
 from schema.project import Project as db_project, Tag as db_tag
 from schema.user import User as db_user
+from schema.enums import AssignmentRole
 from models.project_models import CreateProject, CreateTag
 from repository.user_repository import get_user_assignment
 from services.activity_log_services import ActivityLogService
 from schema.enums import ActivityActionType
+from services.notification_service import NotificationService
 
 class ProjectService:
     def __init__(self, db_session: AsyncSession):
@@ -36,7 +38,7 @@ class ProjectService:
         try:
             created_project = await ProjectRepo.create_project(project, self.session)
 
-            await ActivityLogService.log_activity(
+            await ActivityLogService.log_activity_static(
                 session=self.session,
                 modified_by_user_id=current_user.id,
                 action_type=ActivityActionType.create_project,
@@ -68,13 +70,12 @@ class ProjectService:
         tag = db_tag(id=str(uuid.uuid4()), name=data.name)
         try:
             created_tag = await ProjectRepo.create_tag(tag, self.session)
-            await ActivityLogService.log_activity(
+            await ActivityLogService.log_activity_static(
                 session=self.session,
                 modified_by_user_id=current_user.id,
                 action_type=ActivityActionType.create_tag,
                 message=f"Tag '{created_tag.name}' created by user '{current_user.name}'"
             )
-            from services.notification_service import NotificationService
             await NotificationService.notify_user(
                 user_id=current_user.id,
                 subject="Tag Created",
@@ -124,7 +125,7 @@ class ProjectService:
                 detail="User not assigned to project",
             ) from e
 
-        if not assignment or not assignment.role == "project_admin":
+        if not assignment or not assignment.role == AssignmentRole.project_admin:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User is not authorized to archive project",
@@ -133,7 +134,7 @@ class ProjectService:
             result = await ProjectRepo.change_project_archive(
                 project_id, archive_status, self.session
             )
-            await ActivityLogService.log_activity(
+            await ActivityLogService.log_activity_static(
                 session=self.session,
                 modified_by_user_id=current_user.id,
                 action_type=ActivityActionType.archive_project,

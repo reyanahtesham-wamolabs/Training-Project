@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from models.user_model import User, CreateUser, UserLogin, ChangePassword,ChangeEmail,ChangeName
+from models.user_model import User, CreateUser, UserLogin, ChangePassword,ChangeEmail,ChangeName,VerifyOTP
+
 from models.token_models import RefreshToken
 from repository.user_auth import UserCrud
 from services.auth_services import UserAuthenticationServices
@@ -76,9 +77,8 @@ async def change_name(
 
 @router.post("/verify_otp")
 async def verify_otp(
-    opt_code: str,
-    user_email:str,
+    otp:VerifyOTP,
     session: AsyncSession = Depends(get_db),
 ):
-    result = await UserAuthenticationServices.check_otp(opt_code,user_email, session)
+    result = await UserAuthenticationServices.check_otp(otp.otp_code,otp.user_email, session)
     return result

@@ -1,11 +1,12 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from repository.task import TaskCrud
 from schema.task import Task as db_task
 from models.task_models import TaskCreation, TaskUpdate
-
+from services.notification_service import NotificationService
+from services.activity_log_services import ActivityLogService
+from schema.enums import ActivityActionType
 class TaskService:
     def __init__(self, db_session: AsyncSession):
         self.session = db_session
@@ -20,9 +21,13 @@ class TaskService:
 
         try:
             task = await TaskCrud.add_task(data, self.session)
-            from services.activity_log_services import ActivityLogService
-            from schema.enums import ActivityActionType
-            await ActivityLogService.log_activity(
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create task due to a database error",
+            ) from e
+
+        await ActivityLogService.log_activity_static(
                 session=self.session,
                 modified_by_user_id=current_user.id,
                 action_type=ActivityActionType.create_task,
@@ -30,8 +35,7 @@ class TaskService:
                 task_id=task.id,
                 project_id=task.project_id
             )
-            from services.notification_service import NotificationService
-            await NotificationService.notify_project_members(
+        await NotificationService.notify_project_members(
                 project_id=task.project_id,
                 subject="Task Created",
                 text=f"Task '{task.name}' has been created by {current_user.name}.",
@@ -40,12 +44,7 @@ class TaskService:
                 related_task_id=task.id,
                 related_project_id=task.project_id
             )
-            return task
-        except SQLAlchemyError as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create task due to a database error",
-            ) from e
+        return task
 
     async def delete_task(self, task_id: str, current_user) -> None:
         task = await TaskCrud.get_task_by_id(task_id, self.session)
@@ -56,7 +55,6 @@ class TaskService:
             )
 
         try:
-            from services.notification_service import NotificationService
             await NotificationService.notify_task_assignees(
                 task_id=task_id,
                 subject="Task Deleted",
@@ -65,9 +63,7 @@ class TaskService:
                 exclude_user_id=current_user.id,
                 related_project_id=task.project_id
             )
-            from services.activity_log_services import ActivityLogService
-            from schema.enums import ActivityActionType
-            await ActivityLogService.log_activity(
+            await ActivityLogService.log_activity_static(
                 session=self.session,
                 modified_by_user_id=current_user.id,
                 action_type=ActivityActionType.delete_task,
@@ -104,9 +100,7 @@ class TaskService:
             )
 
         try:
-            from services.activity_log_services import ActivityLogService
-            from schema.enums import ActivityActionType
-            await ActivityLogService.log_activity(
+            await ActivityLogService.log_activity_static(
                 session=self.session,
                 modified_by_user_id=current_user.id,
                 action_type=ActivityActionType.update_task,
@@ -114,7 +108,6 @@ class TaskService:
                 task_id=task.id,
                 project_id=task.project_id
             )
-            from services.notification_service import NotificationService
             await NotificationService.notify_task_assignees(
                 task_id=task.id,
                 subject="Task Updated",
@@ -164,9 +157,7 @@ class TaskService:
             dependant_task = await TaskCrud.get_task_by_id(dependant_id, self.session)
             prereq_task = await TaskCrud.get_task_by_id(prerequisite_id, self.session)
             if dependant_task and prereq_task:
-                from services.activity_log_services import ActivityLogService
-                from schema.enums import ActivityActionType
-                await ActivityLogService.log_activity(
+                await ActivityLogService.log_activity_static(
                     session=self.session,
                     modified_by_user_id=current_user.id,
                     action_type=ActivityActionType.add_prerequisite,
@@ -174,7 +165,6 @@ class TaskService:
                     task_id=dependant_task.id,
                     project_id=dependant_task.project_id
                 )
-                from services.notification_service import NotificationService
                 await NotificationService.notify_task_assignees(
                     task_id=dependant_id,
                     subject="Prerequisite Added",

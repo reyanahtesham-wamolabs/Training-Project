@@ -56,7 +56,7 @@ async def change_privacy(
     user_service: Annotated[UserManagementService, Depends(get_user_service)],
     current_user: db_User = Depends(get_current_user),
 ):
-    """Allow a user to change their privacy level (e.g. low/medium/high)."""
+    """Allow a user to change their privacy level."""
 
     user_obj = await user_service.change_privacy(new_level, current_user)
     return {

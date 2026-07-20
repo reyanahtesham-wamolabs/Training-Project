@@ -1,12 +1,4 @@
 from __future__ import annotations
-
-"""
-Repository layer.
-
-Responsibility: talk to the database. Nothing else.
-No HTTPException, no membership/permission checks here - those are business
-rules and belong in TeamService.
-"""
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +8,6 @@ from models.team_models import TeamCreate
 
 class TeamRepo:
 
-    # --- Team ---
     @staticmethod
     async def create_team(data: TeamCreate, session: AsyncSession) -> db_team:
         team = db_team(**data.model_dump())
@@ -35,7 +26,6 @@ class TeamRepo:
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
 
-    # --- TeamMember ---
     @staticmethod
     async def add_member(user_id: str, team_id: str, session: AsyncSession) -> db_team_member:
         member = db_team_member(user_id=user_id, team_id=team_id)
@@ -71,7 +61,6 @@ class TeamRepo:
         await session.commit()
         return True
 
-    # --- Message ---
     @staticmethod
     async def create_message(member_id: str, team_id: str, content: str, session: AsyncSession) -> db_message:
         message = db_message(member_id=member_id, team_id=team_id, content=content)

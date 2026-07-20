@@ -5,6 +5,7 @@ from schema.enums import ActivityActionType
 from datetime import datetime, timezone
 import uuid
 
+
 class ActivityLogService:
     def __init__(self, db_session: AsyncSession):
         self.session = db_session
@@ -63,4 +64,13 @@ class ActivityLogService:
     async def get_all_logs(self) -> list[db_ActivityLog]:
         stmt = select(db_ActivityLog).order_by(db_ActivityLog.change_time.desc())
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
+
+    async def get_own_logs(self, current_user) -> list[db_ActivityLog]:
+        stmt = (
+            select(db_ActivityLog)
+            .where(db_ActivityLog.modified_by_user_id == current_user.id)
+            .order_by(db_ActivityLog.change_time.desc())
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()

@@ -57,6 +57,12 @@ class TeamMember(Base):
     user = relationship("User")
     team = relationship("Team", back_populates="members")
     messages: Mapped[List["Message"]] = relationship("Message", back_populates="member")
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "team_id",
+            name="uq_teammember_user_team",
+        ),)
 
 
 class Message(Base):

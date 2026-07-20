@@ -47,12 +47,11 @@ def check_password(value: str) -> str:
 
     return value
 
-email_value=Annotated[str,AfterValidator(check_email)]
-password_value=Annotated[str,AfterValidator(check_password)]
-
 def check_non_empty_value(value: str) -> str:
     if not value.strip():
         raise ValueError("Cannot accept empty string")
     return value
 
+email_value=Annotated[str,AfterValidator(check_email)]
+password_value=Annotated[str,AfterValidator(check_password)]
 non_empty_value=Annotated[str,AfterValidator(check_non_empty_value)]

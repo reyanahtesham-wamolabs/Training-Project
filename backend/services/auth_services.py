@@ -30,19 +30,11 @@ class UserAuthenticationServices:
             verified=False,
         )
 
-        try:
-            created_user = await UserCrud.add_user(user_complete_data, session)
-        except SQLAlchemyError as e:
-            print(e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create user",
-            ) from e
 
         otp_code = generate_OTP()
 
         try:
-            await email_OTP(otp_code, created_user.email)
+            await email_OTP(otp_code, user_complete_data.email)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -50,8 +42,8 @@ class UserAuthenticationServices:
             ) from e
 
         otp = db_otp(
-            user_id=created_user.id,
-            user_name=created_user.name,
+            user_id=user_complete_data.id,
+            user_name=user_complete_data.name,
             code=hash_password(otp_code),
             action=OTPAction.verify_profile,
         )
@@ -62,6 +54,14 @@ class UserAuthenticationServices:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to store OTP",
+            ) from e
+        try:
+            created_user = await UserCrud.add_user(user_complete_data, session)
+        except SQLAlchemyError as e:
+            print(e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create user",
             ) from e
 
         return {
