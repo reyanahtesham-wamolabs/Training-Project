@@ -13,19 +13,19 @@ from repository.project import ProjectRepo
 from models.team_models import TeamCreate, MessageCreate
 from schema.team import Team as db_team, TeamMember as db_team_member, Message as db_message
 
-
 class TeamService:
+    def __init__(self, db_session: AsyncSession):
+        self.session = db_session
 
-    @staticmethod
-    async def create_team(data: TeamCreate, session: AsyncSession) -> db_team:
-        project = await ProjectRepo.get_project_by_id(data.project_id, session)
+    async def create_team(self, data: TeamCreate) -> db_team:
+        project = await ProjectRepo.get_project_by_id(data.project_id, self.session)
         if project is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Project '{data.project_id}' not found",
             )
 
-        existing = await TeamRepo.get_team_by_project_id(data.project_id, session)
+        existing = await TeamRepo.get_team_by_project_id(data.project_id, self.session)
         if existing is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -33,29 +33,28 @@ class TeamService:
             )
 
         try:
-            return await TeamRepo.create_team(data, session)
+            return await TeamRepo.create_team(data, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create team due to a database error",
             ) from e
 
-    @staticmethod
-    async def add_member(email: str, team_id: str, session: AsyncSession) -> db_team_member:
+    async def add_member(self, email: str, team_id: str) -> db_team_member:
         from repository.user_repository import get_user_by_email
 
-        user = await get_user_by_email(email, session)
+        user = await get_user_by_email(email, self.session)
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with email '{email}' not found",
             )
 
-        team = await TeamRepo.get_team_by_id(team_id, session)
+        team = await TeamRepo.get_team_by_id(team_id, self.session)
         if team is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
 
-        existing = await TeamRepo.get_membership(user.id, team_id, session)
+        existing = await TeamRepo.get_membership(user.id, team_id, self.session)
         if existing is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -63,13 +62,13 @@ class TeamService:
             )
 
         try:
-            member = await TeamRepo.add_member(user.id, team_id, session)
+            member = await TeamRepo.add_member(user.id, team_id, self.session)
             from services.notification_service import NotificationService
             await NotificationService.notify_user(
                 user_id=user.id,
                 subject="Added to Team",
                 text=f"You have been added to team '{team.name}'.",
-                session=session,
+                session=self.session,
             )
             return member
         except IntegrityError as e:
@@ -83,14 +82,11 @@ class TeamService:
                 detail="Failed to add team member due to a database error",
             ) from e
 
-    @staticmethod
-    async def remove_member(member_id: str, current_user, session: AsyncSession) -> None:
-        member = await TeamRepo.get_member_by_id(member_id, session)
+    async def remove_member(self, member_id: str, current_user) -> None:
+        member = await TeamRepo.get_member_by_id(member_id, self.session)
         if member is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team member not found")
 
-        # Assumption: a member can only remove themselves. If you want team
-        # leads/admins to be able to remove other members, extend this check.
         if member.user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -99,14 +95,13 @@ class TeamService:
 
         try:
             removed_user_id = member.user_id
-            team_id = member.team_id
-            await TeamRepo.remove_member(member_id, session)
+            await TeamRepo.remove_member(member_id, self.session)
             from services.notification_service import NotificationService
             await NotificationService.notify_user(
                 user_id=removed_user_id,
                 subject="Removed from Team",
                 text="You have been removed from a team.",
-                session=session,
+                session=self.session,
             )
         except SQLAlchemyError as e:
             raise HTTPException(
@@ -114,9 +109,8 @@ class TeamService:
                 detail="Failed to remove team member due to a database error",
             ) from e
 
-    @staticmethod
-    async def get_members(team_id: str, current_user, session: AsyncSession):
-        membership = await TeamRepo.get_membership(current_user.id, team_id, session)
+    async def get_members(self, team_id: str, current_user):
+        membership = await TeamRepo.get_membership(current_user.id, team_id, self.session)
         if membership is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -124,16 +118,15 @@ class TeamService:
             )
 
         try:
-            return await TeamRepo.get_members_for_team(team_id, session)
+            return await TeamRepo.get_members_for_team(team_id, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to fetch team members due to a database error",
             ) from e
 
-    @staticmethod
-    async def send_message(data: MessageCreate, current_user, session: AsyncSession) -> db_message:
-        membership = await TeamRepo.get_membership(current_user.id, data.team_id, session)
+    async def send_message(self, data: MessageCreate, current_user) -> db_message:
+        membership = await TeamRepo.get_membership(current_user.id, data.team_id, self.session)
         if membership is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -141,13 +134,13 @@ class TeamService:
             )
 
         try:
-            message = await TeamRepo.create_message(membership.id, data.team_id, data.content, session)
+            message = await TeamRepo.create_message(membership.id, data.team_id, data.content, self.session)
             from services.notification_service import NotificationService
             await NotificationService.notify_team_members(
                 team_id=data.team_id,
                 subject="New Message",
                 text=f"{current_user.name} sent a message in the team.",
-                session=session,
+                session=self.session,
                 exclude_user_id=current_user.id,
                 related_message_id=message.id,
             )
@@ -158,9 +151,8 @@ class TeamService:
                 detail="Failed to send message due to a database error",
             ) from e
 
-    @staticmethod
-    async def get_messages(team_id: str, current_user, session: AsyncSession):
-        membership = await TeamRepo.get_membership(current_user.id, team_id, session)
+    async def get_messages(self, team_id: str, current_user):
+        membership = await TeamRepo.get_membership(current_user.id, team_id, self.session)
         if membership is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -168,7 +160,7 @@ class TeamService:
             )
 
         try:
-            return await TeamRepo.get_messages_for_team(team_id, session)
+            return await TeamRepo.get_messages_for_team(team_id, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

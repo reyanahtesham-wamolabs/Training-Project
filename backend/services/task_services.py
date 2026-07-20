@@ -1,4 +1,3 @@
-
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,12 +6,12 @@ from repository.task import TaskCrud
 from schema.task import Task as db_task
 from models.task_models import TaskCreation, TaskUpdate
 
-
 class TaskService:
+    def __init__(self, db_session: AsyncSession):
+        self.session = db_session
 
-    @staticmethod
-    async def create_task(data: TaskCreation, current_user, session: AsyncSession) -> db_task:
-        existing = await TaskCrud.get_task_by_name(data.name, data.project_id, session)
+    async def create_task(self, data: TaskCreation, current_user) -> db_task:
+        existing = await TaskCrud.get_task_by_name(data.name, data.project_id, self.session)
         if existing is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -20,13 +19,23 @@ class TaskService:
             )
 
         try:
-            task = await TaskCrud.add_task(data, session)
+            task = await TaskCrud.add_task(data, self.session)
+            from services.activity_log_services import ActivityLogService
+            from schema.enums import ActivityActionType
+            await ActivityLogService.log_activity(
+                session=self.session,
+                modified_by_user_id=current_user.id,
+                action_type=ActivityActionType.create_task,
+                message=f"Task '{task.name}' created in project '{task.project_id}' by user '{current_user.name}'",
+                task_id=task.id,
+                project_id=task.project_id
+            )
             from services.notification_service import NotificationService
             await NotificationService.notify_project_members(
                 project_id=task.project_id,
                 subject="Task Created",
                 text=f"Task '{task.name}' has been created by {current_user.name}.",
-                session=session,
+                session=self.session,
                 exclude_user_id=current_user.id,
                 related_task_id=task.id,
                 related_project_id=task.project_id
@@ -38,9 +47,8 @@ class TaskService:
                 detail="Failed to create task due to a database error",
             ) from e
 
-    @staticmethod
-    async def delete_task(task_id: str, current_user, session: AsyncSession) -> None:
-        task = await TaskCrud.get_task_by_id(task_id, session)
+    async def delete_task(self, task_id: str, current_user) -> None:
+        task = await TaskCrud.get_task_by_id(task_id, self.session)
         if task is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -53,11 +61,21 @@ class TaskService:
                 task_id=task_id,
                 subject="Task Deleted",
                 text=f"Task '{task.name}' has been deleted by {current_user.name}.",
-                session=session,
+                session=self.session,
                 exclude_user_id=current_user.id,
                 related_project_id=task.project_id
             )
-            deleted = await TaskCrud.delete_task(task_id, session)
+            from services.activity_log_services import ActivityLogService
+            from schema.enums import ActivityActionType
+            await ActivityLogService.log_activity(
+                session=self.session,
+                modified_by_user_id=current_user.id,
+                action_type=ActivityActionType.delete_task,
+                message=f"Task '{task.name}' deleted by user '{current_user.name}'",
+                task_id=task.id,
+                project_id=task.project_id
+            )
+            deleted = await TaskCrud.delete_task(task_id, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -70,10 +88,9 @@ class TaskService:
                 detail=f"Task with id '{task_id}' not found",
             )
 
-    @staticmethod
-    async def update_task(data: TaskUpdate, current_user, session: AsyncSession) -> db_task:
+    async def update_task(self, data: TaskUpdate, current_user) -> db_task:
         try:
-            task = await TaskCrud.update_task(data, session)
+            task = await TaskCrud.update_task(data, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -87,12 +104,22 @@ class TaskService:
             )
 
         try:
+            from services.activity_log_services import ActivityLogService
+            from schema.enums import ActivityActionType
+            await ActivityLogService.log_activity(
+                session=self.session,
+                modified_by_user_id=current_user.id,
+                action_type=ActivityActionType.update_task,
+                message=f"Task '{task.name}' updated by user '{current_user.name}'",
+                task_id=task.id,
+                project_id=task.project_id
+            )
             from services.notification_service import NotificationService
             await NotificationService.notify_task_assignees(
                 task_id=task.id,
                 subject="Task Updated",
                 text=f"Task '{task.name}' has been updated by {current_user.name}.",
-                session=session,
+                session=self.session,
                 exclude_user_id=current_user.id,
                 related_task_id=task.id,
                 related_project_id=task.project_id
@@ -103,18 +130,16 @@ class TaskService:
 
         return task
 
-    @staticmethod
-    async def get_all_tasks(session: AsyncSession):
+    async def get_all_tasks(self, current_user):
         try:
-            return await TaskCrud.get_all_tasks(session)
+            return await TaskCrud.get_all_tasks_filtered(current_user, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to fetch tasks due to a database error",
             ) from e
 
-    @staticmethod
-    async def add_prerequisite(prerequisite_id: str, dependant_id: str, current_user, session: AsyncSession) -> None:
+    async def add_prerequisite(self, prerequisite_id: str, dependant_id: str, current_user) -> None:
         if prerequisite_id == dependant_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -122,7 +147,7 @@ class TaskService:
             )
 
         try:
-            success = await TaskCrud.add_prerequisite(prerequisite_id, dependant_id, session)
+            success = await TaskCrud.add_prerequisite(prerequisite_id, dependant_id, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -136,15 +161,25 @@ class TaskService:
             )
 
         try:
-            dependant_task = await TaskCrud.get_task_by_id(dependant_id, session)
-            prereq_task = await TaskCrud.get_task_by_id(prerequisite_id, session)
+            dependant_task = await TaskCrud.get_task_by_id(dependant_id, self.session)
+            prereq_task = await TaskCrud.get_task_by_id(prerequisite_id, self.session)
             if dependant_task and prereq_task:
+                from services.activity_log_services import ActivityLogService
+                from schema.enums import ActivityActionType
+                await ActivityLogService.log_activity(
+                    session=self.session,
+                    modified_by_user_id=current_user.id,
+                    action_type=ActivityActionType.add_prerequisite,
+                    message=f"Prerequisite '{prereq_task.name}' added to task '{dependant_task.name}' by user '{current_user.name}'",
+                    task_id=dependant_task.id,
+                    project_id=dependant_task.project_id
+                )
                 from services.notification_service import NotificationService
                 await NotificationService.notify_task_assignees(
                     task_id=dependant_id,
                     subject="Prerequisite Added",
                     text=f"Task '{prereq_task.name}' has been added as a prerequisite for task '{dependant_task.name}' by {current_user.name}.",
-                    session=session,
+                    session=self.session,
                     exclude_user_id=current_user.id,
                     related_task_id=dependant_id,
                     related_project_id=dependant_task.project_id

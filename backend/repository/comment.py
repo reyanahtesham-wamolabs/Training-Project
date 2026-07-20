@@ -72,19 +72,28 @@ class CommentCrud:
 
     @staticmethod
     async def is_user_in_project(user_id: str, project_id: str, session: AsyncSession) -> bool:
+        """Check if a user is a member of the team belonging to the given project."""
+        from schema.team import Team as db_Team, TeamMember as db_TeamMember
         stmt = select(exists().where(
-            db_Assignment.user_id == user_id,
-            db_Assignment.project_id == project_id
+            db_TeamMember.user_id == user_id,
+            db_TeamMember.team_id.in_(
+                select(db_Team.id).where(db_Team.project_id == project_id)
+            )
         ))
         result = await session.execute(stmt)
         return bool(result.scalar())
 
     @staticmethod
     async def is_project_admin(user_id: str, project_id: str, session: AsyncSession) -> bool:
+        """Check if a user holds the project_admin role on any task in the given project."""
+        from schema.task import Task as db_Task
         stmt = select(exists().where(
             db_Assignment.user_id == user_id,
-            db_Assignment.project_id == project_id,
-            db_Assignment.role == AssignmentRole.project_admin
+            db_Assignment.role == AssignmentRole.project_admin,
+            db_Assignment.task_id.in_(
+                select(db_Task.id).where(db_Task.project_id == project_id)
+            )
         ))
         result = await session.execute(stmt)
         return bool(result.scalar())
+

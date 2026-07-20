@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from dependencies.database import get_db
+from dependencies.services import get_comment_service
 from dependencies.authorization import get_current_user
 from schema.user import User as db_User
 from models.comment_models import CommentCreate, CommentUpdate, CommentResponse
@@ -40,9 +39,9 @@ def map_comment_to_response(db_comment) -> CommentResponse:
 async def create_comment_route(
     data: CommentCreate,
     current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    comment_service: CommentService = Depends(get_comment_service),
 ):
-    comment = await CommentService.create_comment(data, current_user, session)
+    comment = await comment_service.create_comment(data, current_user)
     return map_comment_to_response(comment)
 
 @router_comment.put("/{comment_id}/", response_model=CommentResponse)
@@ -50,25 +49,25 @@ async def update_comment_route(
     comment_id: str,
     data: CommentUpdate,
     current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    comment_service: CommentService = Depends(get_comment_service),
 ):
-    comment = await CommentService.update_comment(comment_id, data, current_user, session)
+    comment = await comment_service.update_comment(comment_id, data, current_user)
     return map_comment_to_response(comment)
 
 @router_comment.delete("/{comment_id}/", status_code=status.HTTP_200_OK)
 async def delete_comment_route(
     comment_id: str,
     current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    comment_service: CommentService = Depends(get_comment_service),
 ):
-    await CommentService.delete_comment(comment_id, current_user, session)
+    await comment_service.delete_comment(comment_id, current_user)
     return {"status": "Comment Deleted Successfully"}
 
 @router_comment.get("/task/{task_id}/", response_model=List[CommentResponse])
 async def get_task_comments_route(
     task_id: str,
     current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    comment_service: CommentService = Depends(get_comment_service),
 ):
-    comments = await CommentService.get_task_comments(task_id, current_user, session)
+    comments = await comment_service.get_task_comments(task_id, current_user)
     return [map_comment_to_response(c) for c in comments]

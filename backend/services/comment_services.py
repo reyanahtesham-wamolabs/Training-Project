@@ -10,19 +10,20 @@ from models.comment_models import CommentCreate, CommentUpdate
 from services.notification_service import NotificationService
 
 class CommentService:
+    def __init__(self, db_session: AsyncSession):
+        self.session = db_session
 
-    @staticmethod
     async def create_comment(
-        data: CommentCreate, current_user, session: AsyncSession
+        self, data: CommentCreate, current_user
     ) -> db_Comment:
-        task = await TaskCrud.get_task_by_id(data.task_id, session)
+        task = await TaskCrud.get_task_by_id(data.task_id, self.session)
         if task is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Task with id '{data.task_id}' not found",
             )
 
-        is_assigned = await CommentCrud.is_user_in_project(current_user.id, task.project_id, session)
+        is_assigned = await CommentCrud.is_user_in_project(current_user.id, task.project_id, self.session)
         if not is_assigned and current_user.role != Roles.admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -30,7 +31,7 @@ class CommentService:
             )
 
         if data.parent_comment_id:
-            parent_comment = await CommentCrud.get_comment_by_id(data.parent_comment_id, session)
+            parent_comment = await CommentCrud.get_comment_by_id(data.parent_comment_id, self.session)
             if parent_comment is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -48,7 +49,7 @@ class CommentService:
                 )
             from sqlalchemy import select, exists
             stmt = select(exists().where(db_Comment.parent_comment_id == data.parent_comment_id))
-            result = await session.execute(stmt)
+            result = await self.session.execute(stmt)
             has_reply = result.scalar()
             if has_reply:
                 raise HTTPException(
@@ -57,7 +58,7 @@ class CommentService:
                 )
 
         try:
-            comment = await CommentCrud.add_comment(data, current_user.id, session)
+            comment = await CommentCrud.add_comment(data, current_user.id, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -65,7 +66,7 @@ class CommentService:
             ) from e
 
         # Pre-load user relationship for returned object / notifications
-        comment = await CommentCrud.get_comment_by_id(comment.id, session)
+        comment = await CommentCrud.get_comment_by_id(comment.id, self.session)
 
         try:
             if data.parent_comment_id:
@@ -75,7 +76,7 @@ class CommentService:
                         user_id=parent_comment.user_id,
                         subject="New Reply",
                         text=f"{current_user.name} replied to your comment on task '{task.name}'.",
-                        session=session,
+                        session=self.session,
                         related_task_id=task.id,
                         related_comment_id=comment.id,
                         related_project_id=task.project_id
@@ -86,7 +87,7 @@ class CommentService:
                     task_id=task.id,
                     subject="New Comment",
                     text=f"New comment added on task '{task.name}' by {current_user.name}.",
-                    session=session,
+                    session=self.session,
                     exclude_user_id=current_user.id,
                     related_task_id=task.id,
                     related_comment_id=comment.id,
@@ -98,11 +99,10 @@ class CommentService:
 
         return comment
 
-    @staticmethod
     async def update_comment(
-        comment_id: str, data: CommentUpdate, current_user, session: AsyncSession
+        self, comment_id: str, data: CommentUpdate, current_user
     ) -> db_Comment:
-        comment = await CommentCrud.get_comment_by_id(comment_id, session)
+        comment = await CommentCrud.get_comment_by_id(comment_id, self.session)
         if comment is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -116,28 +116,27 @@ class CommentService:
             )
 
         try:
-            return await CommentCrud.update_comment(comment, data.content, session)
+            return await CommentCrud.update_comment(comment, data.content, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to update comment due to a database error",
             ) from e
 
-    @staticmethod
     async def delete_comment(
-        comment_id: str, current_user, session: AsyncSession
+        self, comment_id: str, current_user
     ) -> None:
-        comment = await CommentCrud.get_comment_by_id(comment_id, session)
+        comment = await CommentCrud.get_comment_by_id(comment_id, self.session)
         if comment is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Comment with id '{comment_id}' not found",
             )
 
-        task = await TaskCrud.get_task_by_id(comment.task_id, session)
+        task = await TaskCrud.get_task_by_id(comment.task_id, self.session)
         is_padmin = False
         if task:
-            is_padmin = await CommentCrud.is_project_admin(current_user.id, task.project_id, session)
+            is_padmin = await CommentCrud.is_project_admin(current_user.id, task.project_id, self.session)
 
         can_delete = (
             comment.user_id == current_user.id
@@ -152,25 +151,24 @@ class CommentService:
             )
 
         try:
-            await CommentCrud.delete_comment(comment_id, session)
+            await CommentCrud.delete_comment(comment_id, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to delete comment due to a database error",
             ) from e
 
-    @staticmethod
     async def get_task_comments(
-        task_id: str, current_user, session: AsyncSession
+        self, task_id: str, current_user
     ) -> list[db_Comment]:
-        task = await TaskCrud.get_task_by_id(task_id, session)
+        task = await TaskCrud.get_task_by_id(task_id, self.session)
         if task is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Task with id '{task_id}' not found",
             )
 
-        is_assigned = await CommentCrud.is_user_in_project(current_user.id, task.project_id, session)
+        is_assigned = await CommentCrud.is_user_in_project(current_user.id, task.project_id, self.session)
         if not is_assigned and current_user.role != Roles.admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -178,7 +176,7 @@ class CommentService:
             )
 
         try:
-            return await CommentCrud.get_task_comments(task_id, session)
+            return await CommentCrud.get_task_comments(task_id, self.session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

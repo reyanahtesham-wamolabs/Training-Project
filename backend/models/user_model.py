@@ -41,16 +41,14 @@ class UserPrivacy(BaseModel):
     level:Levels
 
 class CreateAssignUser(BaseModel):
-    user_email:email_value
-    task_id:non_empty_value
-    project_name:non_empty_value
-    role:AssignmentRole
+    user_email: email_value
+    task_id: non_empty_value
+    role: AssignmentRole
 class AssignUser(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
-    user_email:email_value
-    task_id:non_empty_value
-    project_name:non_empty_value
-    role:AssignmentRole
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_email: email_value
+    task_id: non_empty_value
+    role: AssignmentRole
 class ChangeUserRole(BaseModel):
     user_email:email_value
     user_role:Roles

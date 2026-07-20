@@ -1,60 +1,53 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from dependencies.database import get_db
-from dependencies.authorization import get_current_user, get_current_admin,get_current_manager
+from dependencies.services import get_task_service
+from dependencies.authorization import get_current_user, get_current_admin, get_current_manager
 from models.task_models import TaskCreation, TaskUpdate
-from  schema.user import User as db_User
+from schema.user import User as db_User
 from services.task_services import TaskService
 
 router_task = APIRouter()
-
 
 @router_task.post("/create_task/")
 async def create_task_route(
     task_data: TaskCreation,
     current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    task_service: TaskService = Depends(get_task_service),
 ):
-    # roles based access and jwt auth in other branch. Will be added later
-    task = await TaskService.create_task(task_data, current_user, session)
+    task = await task_service.create_task(task_data, current_user)
     return {"status": "Task Created Successfully", "Task ID": task.id}
-
 
 @router_task.delete("/delete_task/")
 async def delete_task_route(
     task_id: str,
     current_user: db_User = Depends(get_current_manager),
-    session: AsyncSession = Depends(get_db),
+    task_service: TaskService = Depends(get_task_service),
 ):
-    await TaskService.delete_task(task_id, current_user, session)
+    await task_service.delete_task(task_id, current_user)
     return {"status": "Task Deleted Successfully"}
-
 
 @router_task.get("/view_task/")
 async def view_task_route(
     current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    task_service: TaskService = Depends(get_task_service),
 ):
-    return await TaskService.get_all_tasks(session)
-
+    return await task_service.get_all_tasks(current_user)
 
 @router_task.patch("/update_task/")
 async def update_task_route(
     user_data: TaskUpdate,
     current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    task_service: TaskService = Depends(get_task_service),
 ):
-    task = await TaskService.update_task(user_data, current_user, session)
+    task = await task_service.update_task(user_data, current_user)
     return {"status": "Task Updated Successfully", "Task ID": task.id}
-
 
 @router_task.patch("/add_prerequisite/")
 async def add_prerequisite_route(
     prerequisite_id: str,
     dependant_id: str,
     current_user: db_User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db),
+    task_service: TaskService = Depends(get_task_service),
 ):
-    await TaskService.add_prerequisite(prerequisite_id, dependant_id, current_user, session)
+    await task_service.add_prerequisite(prerequisite_id, dependant_id, current_user)
     return {"status": "Pre-Requisite Added Successfully"}

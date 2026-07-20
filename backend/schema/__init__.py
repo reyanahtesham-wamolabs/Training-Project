@@ -7,3 +7,4 @@ from .otp import OTP
 from .team import Team,TeamMember,Message
 from .notification import Notification
 from .comment import Comment
+from .activity_log import ActivityLog
