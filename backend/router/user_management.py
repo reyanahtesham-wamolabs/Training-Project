@@ -8,7 +8,7 @@ from dependencies.authorization import (
     get_current_manager
 )
 from helper_functions.hashing import check_password
-from schema.user_models import User as db_User
+from schema.user import User as db_User
 from services.user_services_management import UserManagementService
 from models.user_model import UserPrivacy, CreateAssignUser,ChangeUserRole
 from models.user_modification import UpdatePersonalInfo, ChangeStatus
@@ -16,35 +16,6 @@ from repository.user_repository import get_all_users
 from typing import Annotated
 
 router_user_management = APIRouter()
-
-#Make seperate functions
-#Email
-#password
-#names
-# @router_user_management.patch("/change_personal_information/")
-# async def change_personal_information(
-#     data: UpdatePersonalInfo,
-#     user_service: Annotated[UserManagementService, Depends(get_user_service)],
-#     current_user: db_User = Depends(get_current_admin),
-# ):
-#     if data.new_email:
-#         if not data.current_password:
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail="Current password is required to update email or password",
-#             )
-#         if not check_password(data.current_password, current_user.password):
-#             raise HTTPException(
-#                 status_code=401,
-#                 detail="Current password verification failed",
-#             )
-
-#     user_obj = await user_service.change_personal_information(data, current_user)
-#     return {
-#         "status": "ok",
-#         "action": "Login Required",
-#         "user": {"email": user_obj.email, "name": user_obj.name},
-#     }
 
 
 @router_user_management.patch("/modify_user_status/")
@@ -115,7 +86,7 @@ async def change_user_role(
 
 
 @router_user_management.get("/get_all_users")
-async def assign_user(
+async def get_all_users(
     user_service: Annotated[UserManagementService, Depends(get_user_service)],
     current_user: db_User = Depends(get_current_admin),
 ):

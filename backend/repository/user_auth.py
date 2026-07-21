@@ -2,7 +2,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from schema.user_models import User as db_User
+from  schema.user import User as db_User
 from schema.otp import OTP as db_otp
 from models.user_model import User, UserLogin
 from fastapi import HTTPException

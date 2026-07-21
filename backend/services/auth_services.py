@@ -15,7 +15,7 @@ from fastapi import status
 from helper_functions.opt_gen import generate_OTP, email_OTP
 from schema.otp import OTP as db_otp
 from repository.user_repository import update_user
-from schema.user_models import User as db_user
+from  schema.user import User as db_user
 from schema.enums import OTPAction
 from repository.user_repository import get_user_by_email
 
@@ -24,7 +24,7 @@ class UserAuthenticationServices:
         user_data.password = hash_password(user_data.password)
         user_complete_data = User(
             name=user_data.name,
-            role="Member",
+            role="member",
             password=user_data.password,
             email=user_data.email,
             verified=False,

@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, Response, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
-from schema.user_models import User as db_User
+from  schema.user import User as db_User
 from services.JWT_services import TokenFunctionality
 from dependencies.database import get_db
 from repository.user_repository import get_user_by_id
@@ -14,10 +14,7 @@ async def get_current_user(
     token: str = Depends(security),
     session: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    """
-    Validates the access token and returns the current authenticated user.
-    Raises HTTPException if token is invalid or login is required.
-    """
+
     try:
         token_result = await TokenFunctionality.ensure_valid_access_token(token.credentials, session)
 
@@ -82,8 +79,8 @@ async def get_current_manager(
     """
     Verifies that the current user has admin privileges.
     """
-
-    if not current_user.role == Roles.manager or not current_user.role==Roles.admin:
+    print(current_user.role)
+    if not (current_user.role == Roles.manager or current_user.role==Roles.admin):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Manager privileges required",

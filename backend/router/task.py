@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies.database import get_db
 from dependencies.authorization import get_current_user, get_current_admin,get_current_manager
 from models.task_models import TaskCreation, TaskUpdate
-from schema.user_models import User as db_User
+from  schema.user import User as db_User
 from services.task_services import TaskService
 
 router_task = APIRouter()
@@ -17,7 +17,7 @@ async def create_task_route(
     session: AsyncSession = Depends(get_db),
 ):
     # roles based access and jwt auth in other branch. Will be added later
-    task = await TaskService.create_task(task_data, session)
+    task = await TaskService.create_task(task_data, current_user, session)
     return {"status": "Task Created Successfully", "Task ID": task.id}
 
 
@@ -27,7 +27,7 @@ async def delete_task_route(
     current_user: db_User = Depends(get_current_manager),
     session: AsyncSession = Depends(get_db),
 ):
-    await TaskService.delete_task(task_id, session)
+    await TaskService.delete_task(task_id, current_user, session)
     return {"status": "Task Deleted Successfully"}
 
 
@@ -45,7 +45,7 @@ async def update_task_route(
     current_user: db_User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    task = await TaskService.update_task(user_data, session)
+    task = await TaskService.update_task(user_data, current_user, session)
     return {"status": "Task Updated Successfully", "Task ID": task.id}
 
 
@@ -56,5 +56,5 @@ async def add_prerequisite_route(
     current_user: db_User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    await TaskService.add_prerequisite(prerequisite_id, dependant_id, session)
+    await TaskService.add_prerequisite(prerequisite_id, dependant_id, current_user, session)
     return {"status": "Pre-Requisite Added Successfully"}

@@ -4,14 +4,14 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from repository.project import ProjectRepo
 from schema.project import Project as db_project, Tag as db_tag
-from schema.user_models import User as db_user
+from  schema.user import User as db_user
 from models.project_models import CreateProject, CreateTag
 from repository.user_repository import get_user_assignment
 
 class ProjectService:
 
     @staticmethod
-    async def create_project(data: CreateProject, session: AsyncSession) -> db_project:
+    async def create_project(data: CreateProject, current_user: db_user, session: AsyncSession) -> db_project:
         existing = await ProjectRepo.get_project_by_name(data.name, session)
         if existing is not None:
             raise HTTPException(
@@ -31,7 +31,16 @@ class ProjectService:
         )
 
         try:
-            return await ProjectRepo.create_project(project, session)
+            created_project = await ProjectRepo.create_project(project, session)
+            from services.notification_service import NotificationService
+            await NotificationService.notify_user(
+                user_id=current_user.id,
+                subject="Project Created",
+                text=f"Project '{created_project.name}' has been created successfully.",
+                session=session,
+                related_project_id=created_project.id,
+            )
+            return created_project
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -102,6 +111,16 @@ class ProjectService:
         try:
             result = await ProjectRepo.change_project_archive(
                 project_id, archive_status, session
+            )
+            from services.notification_service import NotificationService
+            status_str = "archived" if archive_status else "unarchived"
+            await NotificationService.notify_project_members(
+                project_id=project_id,
+                subject=f"Project {status_str.capitalize()}",
+                text=f"The project '{result.name}' has been {status_str} by {current_user.name}.",
+                session=session,
+                exclude_user_id=current_user.id,
+                related_project_id=project_id,
             )
         except SQLAlchemyError as e:
             raise HTTPException(
