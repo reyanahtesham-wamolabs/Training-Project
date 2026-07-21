@@ -28,6 +28,11 @@ class Task(Base):
     project_id:Mapped[str]=mapped_column(ForeignKey("Project.id"))
     parent_project:Mapped["Project"]=relationship(back_populates="tasks")
     assignments:Mapped[List["Assignment"]]=relationship(back_populates="task")
+    comments: Mapped[List["Comment"]] = relationship(
+        "Comment",
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
     dependants: Mapped[List["Task"]] = relationship(
         "Task",
         secondary=association_table,

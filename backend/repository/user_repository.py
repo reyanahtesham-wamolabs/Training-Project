@@ -66,7 +66,6 @@ async def update_user(user: db_User, session: AsyncSession) -> UserResponse:
 async def assign_user(
     assignment_id: str,
     user_id: str,
-    project_id: str,
     task_id: str,
     role: str,
     session: AsyncSession,
@@ -76,7 +75,6 @@ async def assign_user(
             id=assignment_id,
             user_id=user_id,
             task_id=task_id,
-            project_id=project_id,
             role=role,
         )
         session.add(assignment)
@@ -87,12 +85,11 @@ async def assign_user(
         raise
 
 
-async def get_user_assignment(user_id: str, project_id: str, session: AsyncSession):
+async def get_user_assignment(user_id: str, task_id: str, session: AsyncSession):
     stmt = (
         select(db_Assignment)
         .where(db_Assignment.user_id == user_id)
-        .where(db_Assignment.project_id == project_id)
+        .where(db_Assignment.task_id == task_id)
     )
     result = await session.execute(stmt)
-    assignment_obj = result.scalar_one_or_none()
-    return assignment_obj
+    return result.scalar_one_or_none()

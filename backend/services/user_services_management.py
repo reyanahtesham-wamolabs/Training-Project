@@ -100,28 +100,52 @@ class UserManagementService:
 
     async def assign_user(self, assignment_data: CreateAssignUser):
         assignment = AssignUser(**assignment_data.model_dump())
+        # 1. Resolve the user being assigned
         user = await get_user_by_email(assignment.user_email, self.session)
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with email '{assignment.user_email}' not found",
             )
-        project = await ProjectRepo.get_project_by_name(
-            assignment.project_name, self.session
-        )
-        if project is None:
+
+        # 2. Resolve the task
+        task = await TaskCrud.get_task_by_id(assignment.task_id, self.session)
+        if task is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Project '{assignment.project_name}' not found",
+                detail=f"Task with id '{assignment.task_id}' not found",
             )
-        task = await TaskCrud.get_task_by_id(assignment.task_id, self.session)
-        if not task.project_id == project.id:
-            raise "Task must be a part of the project"
+
+        # 3. Check that the user is a member of the project's team
+        from schema.team import Team as db_Team, TeamMember as db_TeamMember
+        from sqlalchemy import select, exists
+
+        team_member_exists_stmt = select(
+            exists()
+            .where(db_TeamMember.user_id == user.id)
+            .where(
+                db_TeamMember.team_id.in_(
+                    select(db_Team.id).where(db_Team.project_id == task.project_id)
+                )
+            )
+        )
+        result = await self.session.execute(team_member_exists_stmt)
+        is_team_member = bool(result.scalar())
+
+        if not is_team_member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"User '{assignment.user_email}' is not a member of the team "
+                    f"for the project this task belongs to"
+                ),
+            )
+
+        # 4. Create the assignment
         try:
             assigned_result = await repo_assign_user(
                 assignment.id,
                 user.id,
-                project.id,
                 assignment.task_id,
                 assignment.role,
                 self.session,
@@ -130,10 +154,10 @@ class UserManagementService:
             await NotificationService.notify_user(
                 user_id=user.id,
                 subject="Assigned to Task",
-                text=f"You have been assigned to a task in project '{project.name}'.",
+                text=f"You have been assigned to task '{task.name}'.",
                 session=self.session,
                 related_task_id=assignment.task_id,
-                related_project_id=project.id,
+                related_project_id=task.project_id,
             )
             return assigned_result
         except IntegrityError as e:
