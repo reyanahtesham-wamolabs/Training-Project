@@ -2,7 +2,8 @@ from __future__ import annotations
 from sqlalchemy import select, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
+from schema.task import Task as db_Task
+from schema.team import Team as db_Team, TeamMember as db_TeamMember
 from schema.comment import Comment as db_Comment
 from schema.assignment import Assignment as db_Assignment
 from schema.enums import AssignmentRole
@@ -69,11 +70,10 @@ class CommentCrud:
         await session.commit()
         await session.refresh(comment)
         return comment
-
+      
     @staticmethod
     async def is_user_in_project(user_id: str, project_id: str, session: AsyncSession) -> bool:
         """Check if a user is a member of the team belonging to the given project."""
-        from schema.team import Team as db_Team, TeamMember as db_TeamMember
         stmt = select(exists().where(
             db_TeamMember.user_id == user_id,
             db_TeamMember.team_id.in_(
@@ -86,7 +86,6 @@ class CommentCrud:
     @staticmethod
     async def is_project_admin(user_id: str, project_id: str, session: AsyncSession) -> bool:
         """Check if a user holds the project_admin role on any task in the given project."""
-        from schema.task import Task as db_Task
         stmt = select(exists().where(
             db_Assignment.user_id == user_id,
             db_Assignment.role == AssignmentRole.project_admin,

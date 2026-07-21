@@ -17,6 +17,15 @@ class Project(BaseModel):
 class ArchiveProject(BaseModel):
     id:non_empty_value
     archive:bool
+
+class ProjectUpdate(BaseModel):
+    id: non_empty_value
+    name: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    category: Categories | None = None
+    status: ProjectStatus | None = None
+
 class CreateProject(BaseModel):
     name : non_empty_value
     start_date:date 
@@ -26,7 +35,9 @@ class CreateProject(BaseModel):
     status:ProjectStatus
 class CreateTag(BaseModel):
     name:non_empty_value
-
+class AddTagToProject(BaseModel):
+    project_id:str
+    tag_id:str
 class Tag(BaseModel):
     name:non_empty_value
     id:str=Field(default_factory=lambda:str(uuid.uuid4()))

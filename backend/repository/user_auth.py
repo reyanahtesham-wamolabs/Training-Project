@@ -2,13 +2,13 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from  schema.user import User as db_User
+from schema.user import User as db_User
 from schema.otp import OTP as db_otp
 from models.user_model import User, UserLogin
 from fastapi import HTTPException
 from schema.enums import Levels
 from helper_functions.hashing import check_password
-
+from datetime import datetime,timezone
 
 class UserCrud:
 
@@ -21,6 +21,7 @@ class UserCrud:
             name=data.name,
             active=True,
             email=data.email,
+            verified=getattr(data, "verified", False),
             privacy_level=Levels.high,
             soft_delete=False,
         )
@@ -41,30 +42,36 @@ class UserCrud:
             usersObj = result.scalar_one_or_none()
             if usersObj is None or not usersObj.active:
                 raise HTTPException(status_code=401, detail="Invalid credentials")
+            if not usersObj.verified:
+                raise HTTPException(status_code=403, detail="Verification Needed")
             if not check_password(data.password, usersObj.password):
                 raise HTTPException(status_code=401, detail="Invalid credentials")
             return usersObj
         except SQLAlchemyError:
             raise
+
     @staticmethod
-    async def insert_OTP(data:db_otp,session:AsyncSession):
+    async def insert_OTP(data: db_otp, session: AsyncSession):
         try:
-            print("OTP = ",data.user_id)
             session.add(data)
             await session.commit()
         except SQLAlchemyError:
             await session.rollback()
             raise
-    
+
     @staticmethod
-    async def check_otp(otp_code:str,current_user:db_User,session:AsyncSession):
+    async def check_otp(otp_code: str, current_user: db_User, session: AsyncSession):
         try:
-            stmt = select(db_otp).where(db_otp.user_id==current_user.id)
+            stmt = select(db_otp).where(db_otp.user_id == current_user.id)
             result = await session.execute(stmt)
             otp_objs = result.scalars().all()
             for i in otp_objs:
                 if check_password(otp_code, i.code):
-                    return i
+                    valid_till = i.valid_till if i.valid_till.tzinfo else i.valid_till.replace(tzinfo=timezone.utc)
+                    if valid_till > datetime.now(timezone.utc):
+                        return i
+                    else:
+                        return ("expired", i)
             return False
         except SQLAlchemyError:
             raise

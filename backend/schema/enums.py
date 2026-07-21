@@ -1,40 +1,52 @@
 from enum import Enum
 
+
 class Roles(Enum):
-    admin="admin"
-    manager="manager"
-    member="member"
-    Member="Member"
+    admin = "admin"
+    manager = "manager"
+    member = "member"
+
+
 class Levels(Enum):
-    low="low"
-    medium="medium"
-    high="high"
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+
 class ProjectStatus(Enum):
-    planned="planned"
-    started="started"
-    in_progress="in_progress"
-    finished="finished"
-    under_review="under_review"
-    archived="archived"
+    planned = "planned"
+    started = "started"
+    in_progress = "in_progress"
+    finished = "finished"
+    under_review = "under_review"
+    archived = "archived"
+
+
 class Categories(Enum):
-    upwork="upwork"
-    US_based="US_based"
-    Pak_profile="Pak_profile"
-    inhouse="inhouse"
+    upwork = "upwork"
+    US_based = "US_based"
+    Pak_profile = "Pak_profile"
+    inhouse = "inhouse"
+
+
 class AssignmentRole(Enum):
-    project_admin="project_admin"
-    project_member="project_member"
+    project_admin = "project_admin"
+    project_member = "project_member"
+
+
 class OTPAction(Enum):
-    verify_profile="verify_profile"
-    change_password="change_password"
-    change_email="change_email"
-    change_name="change_name"
+    verify_profile = "verify_profile"
+    change_password = "change_password"
+    change_email = "change_email"
+    change_name = "change_name"
+
 
 class ActivityActionType(Enum):
     create_project = "create_project"
     update_project = "update_project"
     archive_project = "archive_project"
     delete_project = "delete_project"
+    create_tag = "create_tag"
     create_task = "create_task"
     update_task = "update_task"
     delete_task = "delete_task"

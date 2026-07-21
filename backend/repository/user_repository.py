@@ -24,7 +24,7 @@ async def get_user_by_id(id: str, session: AsyncSession) -> db_User | None:
     return userObj
 
 
-async def get_user_by_name(name: str, session: AsyncSession) -> db_User | None:
+async def get_user_by_name(name: str, session: AsyncSession) -> list[db_User] | None:
     stmt = select(db_User).where(db_User.name == name)
     result = await session.execute(stmt)
     userObj = result.scalars().all()

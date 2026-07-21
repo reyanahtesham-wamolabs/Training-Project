@@ -65,7 +65,6 @@ class CommentService:
                 detail="Failed to create comment due to a database error",
             ) from e
 
-        # Pre-load user relationship for returned object / notifications
         comment = await CommentCrud.get_comment_by_id(comment.id, self.session)
 
         try:
@@ -82,7 +81,6 @@ class CommentService:
                         related_project_id=task.project_id
                     )
             else:
-                # Notify task assignees
                 await NotificationService.notify_task_assignees(
                     task_id=task.id,
                     subject="New Comment",
@@ -94,7 +92,6 @@ class CommentService:
                     related_project_id=task.project_id
                 )
         except Exception:
-            # Prevent notification error from breaking creation flow
             pass
 
         return comment

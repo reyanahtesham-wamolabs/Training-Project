@@ -17,6 +17,34 @@ class TeamService:
     def __init__(self, db_session: AsyncSession):
         self.session = db_session
 
+    async def get_all_teams(self) -> list[db_team]|None:
+        teams=await TeamRepo.get_all_teams(self.session)
+        return teams
+
+    async def get_all_members_with_users(self) -> list:
+        """Return all team members with user name and email for admin views."""
+        members = await TeamRepo.get_all_members_with_users(self.session)
+        result = []
+        for m in members:
+            result.append({
+                "id": m.id,
+                "user_id": m.user_id,
+                "team_id": m.team_id,
+                "joined_at": m.joined_at.isoformat(),
+                "name": m.user.name if m.user else None,
+                "email": m.user.email if m.user else None,
+            })
+        return result
+
+    async def get_user_teams(self, current_user) -> list[db_team]:
+        team_ids = await TeamRepo.get_user_teams(current_user.id, self.session)
+        teams = []
+        for team_id in team_ids:
+            team = await TeamRepo.get_team_by_id(team_id, self.session)
+            if team is not None:
+                teams.append(team)
+        return teams
+
     async def create_team(self, data: TeamCreate) -> db_team:
         project = await ProjectRepo.get_project_by_id(data.project_id, self.session)
         if project is None:

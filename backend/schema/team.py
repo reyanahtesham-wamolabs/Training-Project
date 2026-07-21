@@ -58,6 +58,21 @@ class TeamMember(Base):
     team = relationship("Team", back_populates="members")
     messages: Mapped[List["Message"]] = relationship("Message", back_populates="member")
 
+    @property
+    def name(self) -> str | None:
+        return self.user.name if self.user else None
+
+    @property
+    def email(self) -> str | None:
+        return self.user.email if self.user else None
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "team_id",
+            name="uq_teammember_user_team",
+        ),)
+
 
 class Message(Base):
     __tablename__ = "Message"

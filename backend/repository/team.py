@@ -1,13 +1,6 @@
 from __future__ import annotations
-
-"""
-Repository layer.
-
-Responsibility: talk to the database. Nothing else.
-No HTTPException, no membership/permission checks here - those are business
-rules and belong in TeamService.
-"""
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from schema.team import Team as db_team, TeamMember as db_team_member, Message as db_message
@@ -16,7 +9,6 @@ from models.team_models import TeamCreate
 
 class TeamRepo:
 
-    # --- Team ---
     @staticmethod
     async def create_team(data: TeamCreate, session: AsyncSession) -> db_team:
         team = db_team(**data.model_dump())
@@ -24,10 +16,18 @@ class TeamRepo:
         await session.commit()
         await session.refresh(team)
         return team
-
+    @staticmethod
+    
     @staticmethod
     async def get_team_by_id(team_id: str, session: AsyncSession) -> db_team | None:
         return await session.get(db_team, team_id)
+
+    @staticmethod
+    async def get_all_teams(session: AsyncSession) -> list[db_team] | None:
+        stmt = select(db_team)
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
 
     @staticmethod
     async def get_team_by_project_id(project_id: str, session: AsyncSession) -> db_team | None:
@@ -35,7 +35,6 @@ class TeamRepo:
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
 
-    # --- TeamMember ---
     @staticmethod
     async def add_member(user_id: str, team_id: str, session: AsyncSession) -> db_team_member:
         member = db_team_member(user_id=user_id, team_id=team_id)
@@ -53,12 +52,27 @@ class TeamRepo:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def get_user_teams(user_id:str,session:AsyncSession):
+        
+        stmt = select(db_team_member.team_id).where(db_team_member.user_id==user_id)
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+
+    @staticmethod
     async def get_member_by_id(member_id: str, session: AsyncSession) -> db_team_member | None:
         return await session.get(db_team_member, member_id)
 
     @staticmethod
     async def get_members_for_team(team_id: str, session: AsyncSession):
-        stmt = select(db_team_member).where(db_team_member.team_id == team_id)
+        stmt = select(db_team_member).where(db_team_member.team_id == team_id).options(joinedload(db_team_member.user))
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_all_members_with_users(session: AsyncSession) -> list:
+        """Return all TeamMember rows with the related User eagerly loaded."""
+        stmt = select(db_team_member).options(joinedload(db_team_member.user))
         result = await session.execute(stmt)
         return result.scalars().all()
 
@@ -71,7 +85,6 @@ class TeamRepo:
         await session.commit()
         return True
 
-    # --- Message ---
     @staticmethod
     async def create_message(member_id: str, team_id: str, content: str, session: AsyncSession) -> db_message:
         message = db_message(member_id=member_id, team_id=team_id, content=content)

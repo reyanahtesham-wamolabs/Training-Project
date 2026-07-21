@@ -7,7 +7,7 @@ No business logic, no error handling - that all lives in TeamService.
 from fastapi import APIRouter, Depends
 
 from dependencies.services import get_team_service
-from dependencies.authorization import get_current_user
+from dependencies.authorization import get_current_user,get_current_admin,get_current_manager
 from models.team_models import (
     TeamCreate,
     TeamOut,
@@ -24,7 +24,7 @@ router_team = APIRouter()
 @router_team.post("/create_team/", response_model=TeamOut)
 async def create_team_route(
     data: TeamCreate,
-    current_user: db_User = Depends(get_current_user),
+    current_user: db_User = Depends(get_current_manager),
     team_service: TeamService = Depends(get_team_service),
 ):
     return await team_service.create_team(data)
@@ -32,7 +32,7 @@ async def create_team_route(
 @router_team.post("/add_member/", response_model=TeamMemberOut)
 async def add_member_route(
     data: TeamMemberCreate,
-    current_user: db_User = Depends(get_current_user),
+    current_user: db_User = Depends(get_current_manager),
     team_service: TeamService = Depends(get_team_service),
 ):
     return await team_service.add_member(data.email, data.team_id)
@@ -40,7 +40,7 @@ async def add_member_route(
 @router_team.delete("/remove_member/{member_id}/")
 async def remove_member_route(
     member_id: str,
-    current_user: db_User = Depends(get_current_user),
+    current_user: db_User = Depends(get_current_manager),
     team_service: TeamService = Depends(get_team_service),
 ):
     await team_service.remove_member(member_id, current_user)
@@ -69,3 +69,26 @@ async def get_team_messages_route(
     team_service: TeamService = Depends(get_team_service),
 ):
     return await team_service.get_messages(team_id, current_user)
+
+@router_team.get("/get_all_teams/", response_model=list[TeamOut])
+async def get_all_teams(
+    current_user: db_User = Depends(get_current_manager),
+    team_service: TeamService = Depends(get_team_service),
+):
+    return await team_service.get_all_teams()
+
+@router_team.get("/all_members/")
+async def get_all_members(
+    current_user: db_User = Depends(get_current_manager),
+    team_service: TeamService = Depends(get_team_service),
+):
+    """Admin/manager: list all team members with user name and email."""
+    return await team_service.get_all_members_with_users()
+
+@router_team.get("/get_user_teams/", response_model=list[TeamOut])
+async def get_user_teams(
+    current_user: db_User = Depends(get_current_user),
+    team_service: TeamService = Depends(get_team_service),
+):
+    teams=await team_service.get_user_teams(current_user)
+    return teams 
