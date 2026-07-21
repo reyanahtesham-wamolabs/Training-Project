@@ -8,6 +8,7 @@ class User(BaseModel):
     name : non_empty_value
     email: email_value 
     password:password_value
+    verified:bool
     role:Roles
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
     
@@ -15,10 +16,13 @@ class CreateUser(BaseModel):
     email:email_value
     password:password_value
     name:non_empty_value
-    role:Roles
 class ChangePassword(BaseModel):
     current_password:non_empty_value
     new_password:password_value    
+class ChangeEmail(BaseModel):
+    new_email:email_value
+class ChangeName(BaseModel):
+    new_name:non_empty_value
 class UserLogin(BaseModel):
     email:str
     password:str
@@ -47,3 +51,6 @@ class AssignUser(BaseModel):
     task_id:non_empty_value
     project_name:non_empty_value
     role:AssignmentRole
+class ChangeUserRole(BaseModel):
+    user_email:email_value
+    user_role:Roles

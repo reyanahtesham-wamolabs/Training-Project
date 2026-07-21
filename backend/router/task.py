@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dependencies.database import get_db
-from dependencies.Authorization import get_current_user, get_current_admin
+from dependencies.authorization import get_current_user, get_current_admin,get_current_manager
 from models.task_models import TaskCreation, TaskUpdate
 from schema.user_models import User as db_User
 from services.task_services import TaskService
@@ -24,10 +24,9 @@ async def create_task_route(
 @router_task.delete("/delete_task/")
 async def delete_task_route(
     task_id: str,
-    current_user: db_User = Depends(get_current_user),
+    current_user: db_User = Depends(get_current_manager),
     session: AsyncSession = Depends(get_db),
 ):
-    # roles based access and jwt auth in other branch. Will be added later
     await TaskService.delete_task(task_id, session)
     return {"status": "Task Deleted Successfully"}
 
@@ -37,7 +36,6 @@ async def view_task_route(
     current_user: db_User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    # roles based access and jwt auth in other branch. Will be added later
     return await TaskService.get_all_tasks(session)
 
 
@@ -47,7 +45,6 @@ async def update_task_route(
     current_user: db_User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    # roles based access and jwt auth in other branch. Will be added later
     task = await TaskService.update_task(user_data, session)
     return {"status": "Task Updated Successfully", "Task ID": task.id}
 
@@ -59,6 +56,5 @@ async def add_prerequisite_route(
     current_user: db_User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    # roles based access and jwt auth in other branch. Will be added later
     await TaskService.add_prerequisite(prerequisite_id, dependant_id, session)
     return {"status": "Pre-Requisite Added Successfully"}

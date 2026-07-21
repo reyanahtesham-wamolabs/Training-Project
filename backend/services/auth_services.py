@@ -1,37 +1,93 @@
-from models.user_model import User,CreateUser,UserLogin,ChangePassword
+from models.user_model import (
+    User,
+    CreateUser,
+    UserLogin,
+    ChangePassword,
+    ChangeEmail,
+    ChangeName,
+)
 from repository.user_auth import UserCrud
 from .JWT_services import TokenFunctionality
 from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
-from helper_functions.hashing import hash_password,check_password
+from helper_functions.hashing import hash_password, check_password
 from fastapi import status
-from helper_functions.opt_gen import generate_OTP,email_OTP
+from helper_functions.opt_gen import generate_OTP, email_OTP
 from schema.otp import OTP as db_otp
 from repository.user_repository import update_user
 from schema.user_models import User as db_user
-class UserAuthenticationServices:
-    async def user_signup(user_data:CreateUser,session):
-        user_data.password=hash_password(user_data.password)
-        user_complete_data=User(name=user_data.name,role=user_data.role,password=user_data.password,email=user_data.email)
-        created_user = await UserCrud.add_user(user_complete_data, session)
-        return {
-    "status_code": status.HTTP_201_CREATED,
-    "message": "User created successfully.",
-    "data": {
-        "id": created_user.id,
-        "name": created_user.name,
-        "email": created_user.email,
-        "role": created_user.role,
-    },
-}
+from schema.enums import OTPAction
+from repository.user_repository import get_user_by_email
 
-    async def user_login(user_data:UserLogin,session):
+class UserAuthenticationServices:
+    async def user_signup(user_data: CreateUser, session):
+        user_data.password = hash_password(user_data.password)
+        user_complete_data = User(
+            name=user_data.name,
+            role="Member",
+            password=user_data.password,
+            email=user_data.email,
+            verified=False,
+        )
+
+        try:
+            created_user = await UserCrud.add_user(user_complete_data, session)
+        except SQLAlchemyError as e:
+            print(e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create user",
+            ) from e
+
+        otp_code = generate_OTP()
+
+        try:
+            await email_OTP(otp_code, created_user.email)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to send OTP, please try again",
+            ) from e
+
+        otp = db_otp(
+            user_id=created_user.id,
+            user_name=created_user.name,
+            code=hash_password(otp_code),
+            action=OTPAction.verify_profile,
+        )
+
+        try:
+            await UserCrud.insert_OTP(otp, session)
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to store OTP",
+            ) from e
+
+        return {
+            "status_code": status.HTTP_201_CREATED,
+            "message": "User created successfully. Please check your email to verify your account.",
+            "data": {
+                "id": created_user.id,
+                "name": created_user.name,
+                "email": created_user.email,
+                "role": created_user.role,
+                "verified": created_user.verified,
+            },
+        }
+
+    async def user_login(user_data: UserLogin, session):
         user_obj = await UserCrud.user_login(user_data, session)
         access_token = TokenFunctionality.create_access_token(user_obj.id)
-        refresh_token = await TokenFunctionality.create_refresh_token(user_obj.id, session)
-        return {"access_token": access_token,"refresh_token": refresh_token,"token_type": "bearer"}
-       
-        
+        refresh_token = await TokenFunctionality.create_refresh_token(
+            user_obj.id, session
+        )
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
+
     async def password_change(user_data: ChangePassword, current_user, session):
         if not check_password(user_data.current_password, current_user.password):
             raise HTTPException(
@@ -39,10 +95,10 @@ class UserAuthenticationServices:
                 detail="Current password is not correct",
             )
 
-        otp_code=generate_OTP()
+        otp_code = generate_OTP()
 
         try:
-            await email_OTP (otp_code,current_user.email)
+            await email_OTP(otp_code, current_user.email)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -53,7 +109,8 @@ class UserAuthenticationServices:
             user_id=current_user.id,
             user_name=current_user.name,
             code=hash_password(otp_code),
-            new_desired_password=hash_password(user_data.new_password)
+            new_desired_password=hash_password(user_data.new_password),
+            action=OTPAction.change_password,
         )
 
         try:
@@ -66,11 +123,82 @@ class UserAuthenticationServices:
 
         return {"status": "OTP sent, please check your email"}
 
+    async def email_change(user_data: ChangeEmail, current_user, session):
 
-    @staticmethod
-    async def check_otp(otp_code: str, current_user, session):
+        otp_code = generate_OTP()
+
         try:
-            result = await UserCrud.check_otp(otp_code, current_user, session)
+            await email_OTP(otp_code, current_user.email)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to send OTP, please try again",
+            ) from e
+
+        otp = db_otp(
+            user_id=current_user.id,
+            user_name=current_user.name,
+            code=hash_password(otp_code),
+            new_desired_email=user_data.new_email,
+            action=OTPAction.change_email,
+        )
+
+        try:
+            await UserCrud.insert_OTP(otp, session)
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to store OTP",
+            ) from e
+
+        return {"status": "OTP sent, please check your email"}
+
+    async def name_change(user_data: ChangeName, current_user, session):
+        otp_code = generate_OTP()
+
+        try:
+            await email_OTP(otp_code, current_user.email)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to send OTP, please try again",
+            ) from e
+
+        otp = db_otp(
+            user_id=current_user.id,
+            user_name=current_user.name,
+            code=hash_password(otp_code),
+            new_desired_name=user_data.new_name,
+            action=OTPAction.change_name,
+        )
+
+        try:
+            await UserCrud.insert_OTP(otp, session)
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to store OTP",
+            ) from e
+
+        return {"status": "OTP sent, please check your email"}
+
+    async def check_otp(otp_code: str, email: str, session):
+        try:
+            user = await get_user_by_email(email, session)
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to look up user",
+            ) from e
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        try:
+            result = await UserCrud.check_otp(otp_code, user, session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -83,14 +211,30 @@ class UserAuthenticationServices:
                 detail="Invalid or expired OTP",
             )
 
-        current_user.password = result.new_desired_password
+        if result.action == OTPAction.change_password:
+            user.password = result.new_desired_password
+            success_message = "Password updated successfully"
+        elif result.action == OTPAction.change_email:
+            user.email = result.new_desired_email
+            success_message = "Email updated successfully"
+        elif result.action == OTPAction.change_name:
+            user.name = result.new_desired_name
+            success_message = "Name updated successfully"
+        elif result.action == OTPAction.verify_profile:
+            user.verified = True
+            success_message = "Account verified successfully"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unsupported OTP action",
+            )
 
         try:
-            await update_user(current_user, session)
+            await update_user(user, session)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update password",
+                detail=f"Failed to apply {result.action.value}",
             ) from e
 
-        return {"status": "Password updated successfully"}
+        return {"status": success_message}

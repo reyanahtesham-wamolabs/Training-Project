@@ -2,7 +2,8 @@ from __future__ import annotations
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column,relationship
 from .baseclass import Base
-from sqlalchemy import ForeignKey,DateTime
+from .enums import OTPAction
+from sqlalchemy import Enum as sa_enum,ForeignKey,DateTime
 from sqlalchemy import String
 from datetime import datetime,timezone,timedelta
 import uuid
@@ -22,5 +23,8 @@ class OTP(Base):
     )
     user_id: Mapped[str] = mapped_column(String, ForeignKey("User.id"), nullable=False)
     user_name: Mapped[str] = mapped_column(String, nullable=False)
-    new_desired_password:Mapped[str]
+    new_desired_password:Mapped[str]=mapped_column(String,nullable=True)
+    new_desired_name:Mapped[str]=mapped_column(String,nullable=True)
+    new_desired_email:Mapped[str]=mapped_column(String,nullable=True)
     user = relationship("User")
+    action:Mapped[OTPAction]=mapped_column(sa_enum(OTPAction))

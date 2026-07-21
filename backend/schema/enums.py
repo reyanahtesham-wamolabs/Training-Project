@@ -2,9 +2,9 @@ from enum import Enum
 
 class Roles(Enum):
     admin="admin"
+    manager="manager"
     member="member"
     Member="Member"
-    Admin="Admin"
 class Levels(Enum):
     low="low"
     medium="medium"
@@ -22,6 +22,10 @@ class Categories(Enum):
     Pak_profile="Pak_profile"
     inhouse="inhouse"
 class AssignmentRole(Enum):
-    team_lead="team_lead"
-    manager="manager"
-    developer="developer"
+    project_admin="project_admin"
+    project_member="project_member"
+class OTPAction(Enum):
+    verify_profile="verify_profile"
+    change_password="change_password"
+    change_email="change_email"
+    change_name="change_name"

@@ -11,27 +11,30 @@ from models.user_model import UserResponse
 async def get_user_by_email(email: str, session: AsyncSession) -> db_User | None:
     stmt = select(db_User).where(db_User.email == email)
     result = await session.execute(stmt)
-    userObj=result.scalar_one_or_none()
+    userObj = result.scalar_one_or_none()
     if userObj is None:
         return None
     return userObj
 
+
 async def get_user_by_id(id: str, session: AsyncSession) -> db_User | None:
     stmt = select(db_User).where(db_User.id == id)
     result = await session.execute(stmt)
-    userObj=result.scalar_one_or_none()
+    userObj = result.scalar_one_or_none()
     return userObj
 
-async def get_user_by_name(name:str,session:AsyncSession)-> db_User|None:
+
+async def get_user_by_name(name: str, session: AsyncSession) -> db_User | None:
     stmt = select(db_User).where(db_User.name == name)
     result = await session.execute(stmt)
-    userObj=result.scalars().all()
+    userObj = result.scalars().all()
     return userObj
 
-async def get_all_users(session:AsyncSession)-> list[db_User]:
+
+async def get_all_users(session: AsyncSession) -> list[db_User]:
     stmt = select(db_User)
     result = await session.execute(stmt)
-    user_objs=result.scalars().all()
+    user_objs = result.scalars().all()
     return user_objs
 
 
@@ -44,7 +47,6 @@ async def save_user(user_obj: db_User, session: AsyncSession) -> db_User:
     except SQLAlchemyError:
         await session.rollback()
         raise
-
 
 
 async def update_user(user: db_User, session: AsyncSession) -> UserResponse:
@@ -60,12 +62,37 @@ async def update_user(user: db_User, session: AsyncSession) -> UserResponse:
         await session.rollback()
         raise
 
-async def assign_user(assignment_id:str,user_id:str,project_id:str,task_id:str,role:str,session:AsyncSession):
+
+async def assign_user(
+    assignment_id: str,
+    user_id: str,
+    project_id: str,
+    task_id: str,
+    role: str,
+    session: AsyncSession,
+):
     try:
-        assignment=db_Assignment(id=assignment_id,user_id=user_id,task_id=task_id,project_id=project_id,role=role)
+        assignment = db_Assignment(
+            id=assignment_id,
+            user_id=user_id,
+            task_id=task_id,
+            project_id=project_id,
+            role=role,
+        )
         session.add(assignment)
         await session.commit()
         return assignment
     except SQLAlchemyError:
         await session.rollback()
         raise
+
+
+async def get_user_assignment(user_id: str, project_id: str, session: AsyncSession):
+    stmt = (
+        select(db_Assignment)
+        .where(db_Assignment.user_id == user_id)
+        .where(db_Assignment.project_id == project_id)
+    )
+    result = await session.execute(stmt)
+    assignment_obj = result.scalar_one_or_none()
+    return assignment_obj

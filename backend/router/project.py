@@ -2,7 +2,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.project_services import ProjectService
-from dependencies.Authorization import get_current_user, get_current_admin
+from dependencies.authorization import (
+    get_current_user,
+    get_current_admin,
+    get_current_manager,
+)
 from dependencies.database import get_db
 from models.project_models import CreateProject, CreateTag, ArchiveProject
 from schema.user_models import User as db_User
@@ -13,7 +17,7 @@ router_project = APIRouter()
 @router_project.post("/create_project/")
 async def create_project(
     data: CreateProject,
-    current_user: db_User = Depends(get_current_user),
+    current_user: db_User = Depends(get_current_manager),
     session: AsyncSession = Depends(get_db),
 ):
     project = await ProjectService.create_project(data, session)
@@ -40,7 +44,7 @@ async def get_all_tags(
 
 @router_project.get("/get_all_projects/")
 async def get_all_projects(
-    current_user: db_User = Depends(get_current_user),
+    current_user: db_User = Depends(get_current_manager),
     session: AsyncSession = Depends(get_db),
 ):
     return await ProjectService.get_all_projects(session)
@@ -49,10 +53,12 @@ async def get_all_projects(
 @router_project.patch("/archive_project/")
 async def archive_project_route(
     project: ArchiveProject,
-    current_admin: db_User = Depends(get_current_admin),
+    current_user: db_User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    changed_project = await ProjectService.archive_project(project.id, project.archive, session)
+    changed_project = await ProjectService.archive_project(
+        current_user, project.id, project.archive, session
+    )
     return {
         "status": "Change Successful",
         "Project ID": changed_project.id,
