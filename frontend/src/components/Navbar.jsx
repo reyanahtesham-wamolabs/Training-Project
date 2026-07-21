@@ -41,9 +41,8 @@ export default function Navbar({
         </div>
         <div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }} className="text-gradient">
-            Core Concepts
-          </h2>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Enterprise Operations</span>
+            Smart Task
+            </h2>
         </div>
       </div>
 

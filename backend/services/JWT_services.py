@@ -93,6 +93,15 @@ class  TokenFunctionality:
         return token
     
     @staticmethod
+    async def delete_token(current_user,session):
+        try:
+            has_refresh = await tokenCRUD.token_exists(current_user.id, session)
+        except Exception:
+            return {"status": "already logged out"}
+        if has_refresh:
+            await tokenCRUD.delete_refresh_token(current_user.id,session)
+            return "Logged out successfully"
+    @staticmethod
     async def refresh_token(token,session):
         try:
             decoded_token = TokenFunctionality.decode_token(token)

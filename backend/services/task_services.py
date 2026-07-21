@@ -10,6 +10,8 @@ from schema.enums import ActivityActionType
 class TaskService:
     def __init__(self, db_session: AsyncSession):
         self.session = db_session
+    async def get_user_task(self,current_user):
+        return await TaskCrud.get_user_tasks(current_user.id)
 
     async def create_task(self, data: TaskCreation, current_user) -> db_task:
         existing = await TaskCrud.get_task_by_name(data.name, data.project_id, self.session)
@@ -22,6 +24,7 @@ class TaskService:
         try:
             task = await TaskCrud.add_task(data, self.session)
         except SQLAlchemyError as e:
+            print(e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create task due to a database error",

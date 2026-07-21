@@ -16,6 +16,13 @@ async def create_task_route(
 ):
     task = await task_service.create_task(task_data, current_user)
     return {"status": "Task Created Successfully", "Task ID": task.id}
+@router_task.post("/get_user_tasks/")
+async def get_user_task_route(
+    current_user: db_User = Depends(get_current_user),
+    task_service: TaskService = Depends(get_task_service),
+):
+    task = await task_service.get_user_task(current_user)
+    return task
 
 @router_task.delete("/delete_task/")
 async def delete_task_route(

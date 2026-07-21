@@ -20,7 +20,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from schema.team import Team as db_Team, TeamMember as db_TeamMember
 from sqlalchemy import select, exists
 from services.notification_service import NotificationService
-
+from schema.enums import AssignmentRole
 
 class UserManagementService:
     def __init__(self, db_session):
@@ -94,7 +94,8 @@ class UserManagementService:
     async def change_privacy(self, privacy_level, current_user):
         current_user.privacy_level = privacy_level.level
         return await update_user(current_user, self.session)
-    
+
+
     async def change_user_role(self,user:ChangeUserRole):
         current_user=await get_user_by_email(user.user_email)
         return await update_user(current_user,self.session)
@@ -104,15 +105,18 @@ class UserManagementService:
         return await get_users(self.session)
 
     async def assign_user(self, assignment_data: CreateAssignUser):
-        assignment = AssignUser(**assignment_data.model_dump())
-
+        
+        assignment = AssignUser(
+            user_email=assignment_data.user_email,
+            task_id=assignment_data.task_id,
+            role=assignment_data.role
+        )
         user = await get_user_by_email(assignment.user_email, self.session)
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with email '{assignment.user_email}' not found",
             )
-
         task = await TaskCrud.get_task_by_id(assignment.task_id, self.session)
         if task is None:
             raise HTTPException(
@@ -150,7 +154,8 @@ class UserManagementService:
                 assignment.role,
                 self.session,
             )
-        except SQLAlchemyError:
+        except SQLAlchemyError as e:
+            print(e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to create assignment due to a database error",

@@ -22,6 +22,19 @@ class ProjectRepo:
         await session.commit()
         return True
 
+    @staticmethod
+    async def update_project(data, session: AsyncSession) -> db_project | None:
+        project = await session.get(db_project, data.id)
+        if project is None:
+            return None
+
+        update_data = data.model_dump(exclude_unset=True, exclude={"id"})
+        for field, value in update_data.items():
+            setattr(project, field, value)
+
+        await session.commit()
+        await session.refresh(project)
+        return project
 
     @staticmethod
     async def change_project_archive(

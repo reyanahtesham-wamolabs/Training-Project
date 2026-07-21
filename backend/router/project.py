@@ -8,7 +8,7 @@ from dependencies.authorization import (
     get_current_admin,
     get_current_manager,
 )
-from models.project_models import CreateProject, CreateTag, ArchiveProject
+from models.project_models import CreateProject, CreateTag, ArchiveProject,AddTagToProject
 from schema.user import User as db_User
 
 router_project = APIRouter()
@@ -38,9 +38,10 @@ async def get_all_tags(
 ):
     return await project_service.get_all_tags()
 
+
 @router_project.get("/get_all_projects/")
 async def get_all_projects(
-    current_user: db_User = Depends(get_current_manager),
+    current_user: db_User = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
 ):
     return await project_service.get_all_projects()
@@ -59,3 +60,14 @@ async def archive_project_route(
         "Project ID": changed_project.id,
         "Archived": changed_project.archived,
     }
+
+from models.project_models import ProjectUpdate
+
+@router_project.patch("/update_project/")
+async def update_project_route(
+    data: ProjectUpdate,
+    current_user: db_User = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    project = await project_service.update_project(data, current_user)
+    return {"status": "Project Updated Successfully", "Project ID": project.id}

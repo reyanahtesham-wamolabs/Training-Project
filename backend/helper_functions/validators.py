@@ -3,24 +3,18 @@ from schema.enums import Roles,Levels,AssignmentRole
 from typing import Annotated
 import re
 
-def check_email(value:str):
-    EMAIL_REGEX = re.compile(
-    r"^[a-zA-Z][a-zA-Z0-9_.+-]*@gmail\.com$"
-    )
-    ALLOWED_DOMAIN="gmail.com"
-    ans=value
+EMAIL_REGEX = re.compile(
+    r"^[a-zA-Z][a-zA-Z0-9_.+-]*@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$"
+)
+
+def check_email(value: str) -> str:
+    original_value = value
     value = value.strip().lower()
 
-    if not EMAIL_REGEX.match(value):
-        raise ValueError(
-            f"Email must be a valid {ALLOWED_DOMAIN} address"
-        )
+    if not EMAIL_REGEX.fullmatch(value):
+        raise ValueError("Invalid email address")
 
-    domain = value.split("@")[-1]
-    if domain != ALLOWED_DOMAIN:
-        raise ValueError(f"Only {ALLOWED_DOMAIN} email addresses are allowed")
-    return ans
-
+    return original_value
 
 def check_password(value: str) -> str:
     MIN_LENGTH = 8

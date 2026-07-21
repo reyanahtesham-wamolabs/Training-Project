@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 from dependencies.database import get_db
 from dependencies.services import get_user_service
 from dependencies.authorization import (
@@ -15,7 +16,22 @@ from models.user_modification import UpdatePersonalInfo, ChangeStatus
 from repository.user_repository import get_all_users
 from typing import Annotated
 
+
 router_user_management = APIRouter()
+
+
+@router_user_management.get("/me")
+async def get_me(current_user: db_User = Depends(get_current_user)):
+    """Return the currently authenticated user's profile."""
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "email": current_user.email,
+        "role": str(current_user.role.value if hasattr(current_user.role, 'value') else current_user.role),
+        "privacy_level": str(current_user.privacy_level.value if hasattr(current_user.privacy_level, 'value') else current_user.privacy_level),
+        "verified": current_user.verified,
+        "active": current_user.active,
+    }
 
 
 @router_user_management.patch("/modify_user_status/")
@@ -93,3 +109,4 @@ async def get_all_users(
     """Get All Users"""
     all_users = await user_service.get_all_users()
     return all_users
+

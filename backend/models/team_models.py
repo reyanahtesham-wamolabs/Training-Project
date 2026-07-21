@@ -28,6 +28,8 @@ class TeamMemberOut(BaseModel):
     user_id: str
     team_id: str
     joined_at: datetime
+    name: str | None = None
+    email: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

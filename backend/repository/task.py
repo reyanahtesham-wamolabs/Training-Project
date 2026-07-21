@@ -65,7 +65,14 @@ class TaskCrud:
         stmt = select(db_task)
         result = await session.execute(stmt)
         return result.scalars().all()
-
+    
+    @staticmethod
+    async def get_user_tasks(user_id,session: AsyncSession):
+        stmt = select(db_Assignment.task).where(db_Assignment.user_id==user_id)
+        result = await session.execute(stmt)
+        result.scalars().all()
+        return result
+    
     @staticmethod
     async def get_all_tasks_filtered(
         current_user,
@@ -80,8 +87,8 @@ class TaskCrud:
             )
         )
 
-        # Admin sees everything
-        if current_user.role == Roles.admin:
+        # Admin and Manager see everything
+        if current_user.role in [Roles.admin, Roles.manager]:
             result = await session.execute(stmt)
             return result.scalars().all()
 
@@ -89,59 +96,11 @@ class TaskCrud:
         result = await session.execute(stmt)
         tasks = result.scalars().all()
 
-        # Load every user's project memberships in one query
-        membership_stmt = (
-            select(
-                db_TeamMember.user_id,
-                db_Team.project_id,
-            )
-            .join(db_Team, db_Team.id == db_TeamMember.team_id)
-        )
-
-        membership_result = await session.execute(membership_stmt)
-
-        user_projects: dict[str, set[str]] = {}
-
-        for user_id, project_id in membership_result:
-            user_projects.setdefault(user_id, set()).add(project_id)
-
-        viewer_projects = user_projects.get(current_user.id, set())
-
         visible_tasks = []
-
         for task in tasks:
-
-            assignees = [
-                assignment.user
-                for assignment in task.assignments
-                if assignment.user
-            ]
-
-            # No assignees
-            if not assignees:
+            is_assigned = any(assignment.user_id == current_user.id for assignment in task.assignments)
+            if is_assigned:
                 visible_tasks.append(task)
-                continue
-
-            for assignee in assignees:
-
-                # Own task
-                if assignee.id == current_user.id:
-                    visible_tasks.append(task)
-                    break
-
-                if assignee.privacy_level == Levels.low:
-                    visible_tasks.append(task)
-                    break
-
-                if (
-                    assignee.privacy_level == Levels.medium
-                    and viewer_projects &
-                    user_projects.get(assignee.id, set())
-                ):
-                    visible_tasks.append(task)
-                    break
-
-                # High privacy -> continue checking other assignees
 
         return visible_tasks
 

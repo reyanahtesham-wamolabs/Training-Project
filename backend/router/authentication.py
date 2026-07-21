@@ -1,13 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from models.user_model import User, CreateUser, UserLogin, ChangePassword,ChangeEmail,ChangeName,VerifyOTP
+from models.user_model import (
+    User,
+    CreateUser,
+    UserLogin,
+    ChangePassword,
+    ChangeEmail,
+    ChangeName,
+    VerifyOTP,
+)
 
 from models.token_models import RefreshToken
 from repository.user_auth import UserCrud
 from services.auth_services import UserAuthenticationServices
 from dependencies.database import get_db
 from services.JWT_services import TokenFunctionality
-from  schema.user import User as db_User
+from schema.user import User as db_User
 from dependencies.authorization import get_current_user, get_current_admin
 
 router = APIRouter()
@@ -25,15 +33,21 @@ async def login(user_data: UserLogin, session: AsyncSession = Depends(get_db)):
     return data
 
 
+@router.post("/logout/")
+async def logout(
+    session: AsyncSession = Depends(get_db),
+    current_user: db_User = Depends(get_current_user),
+):
+    data = await UserAuthenticationServices.user_logout(session)
+    return data
+
+
 @router.post("/refresh")
 async def refresh(token: RefreshToken, session: AsyncSession = Depends(get_db)):
     result = await TokenFunctionality.refresh_token(token.refresh_token, session)
     if result.get("status") == "login_required":
         raise HTTPException(status_code=401, detail="Login required")
     return result
-
-
-# async def password_change(user_data: ChangePassword, current_user, session):
 
 
 @router.post("/change_password/")
@@ -46,7 +60,6 @@ async def change_password(
         user_data, current_user, session
     )
     return result
-    # async def check_otp(otp_code: str, current_user, session):
 
 
 @router.post("/change_email/")
@@ -59,7 +72,6 @@ async def change_email(
         user_data, current_user, session
     )
     return result
-    # async def check_otp(otp_code: str, current_user, session):
 
 
 @router.post("/change_name/")
@@ -72,13 +84,14 @@ async def change_name(
         user_data, current_user, session
     )
     return result
-    # async def check_otp(otp_code: str, current_user, session):
 
 
 @router.post("/verify_otp")
 async def verify_otp(
-    otp:VerifyOTP,
+    otp: VerifyOTP,
     session: AsyncSession = Depends(get_db),
 ):
-    result = await UserAuthenticationServices.check_otp(otp.otp_code,otp.user_email, session)
+    result = await UserAuthenticationServices.check_otp(
+        otp.otp_code, otp.user_email, session
+    )
     return result
