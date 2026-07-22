@@ -1,4 +1,4 @@
-from pydantic import BaseModel,Field
+from pydantic import BaseModel, Field, ConfigDict
 import uuid
 from datetime import date
 from schema.enums import ProjectStatus,Categories
@@ -25,6 +25,7 @@ class ProjectUpdate(BaseModel):
     end_date: date | None = None
     category: Categories | None = None
     status: ProjectStatus | None = None
+    tags: list[str] | None = None
 
 class CreateProject(BaseModel):
     name : non_empty_value
@@ -33,6 +34,7 @@ class CreateProject(BaseModel):
     archived:bool
     category:Categories
     status:ProjectStatus
+    tags: list[str] | None = None
 class CreateTag(BaseModel):
     name:non_empty_value
 class AddTagToProject(BaseModel):
@@ -41,3 +43,35 @@ class AddTagToProject(BaseModel):
 class Tag(BaseModel):
     name:non_empty_value
     id:str=Field(default_factory=lambda:str(uuid.uuid4()))
+
+class ProjectActionResponse(BaseModel):
+    status: str
+    project_id: str
+
+class TagActionResponse(BaseModel):
+    status: str
+    tag_id: str
+
+class TagOut(BaseModel):
+    id: str
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ProjectOut(BaseModel):
+    id: str
+    name: str
+    start_date: date
+    end_date: date
+    status: str
+    category: str
+    archived: bool
+    soft_delete: bool = False
+    tags: list[str] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ArchiveResponse(BaseModel):
+    status: str
+    project_id: str
+    archived: bool

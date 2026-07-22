@@ -2,10 +2,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import List
 
-from sqlalchemy import String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import String, DateTime, ForeignKey, UniqueConstraint, Enum as sa_enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .baseclass import Base  # adjust to your actual Base import
+from schema.enums import AssignmentRole
 
 
 class Team(Base):
@@ -51,6 +52,12 @@ class TeamMember(Base):
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    project_role: Mapped["AssignmentRole"] = mapped_column(
+        sa_enum(AssignmentRole),
+        default=AssignmentRole.project_member,
+        server_default="project_member",
         nullable=False,
     )
 

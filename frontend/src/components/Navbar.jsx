@@ -1,14 +1,17 @@
 import React from 'react';
 
-export default function Navbar({ 
-  currentUser, 
-  isLoggedIn, 
-  unreadNotificationsCount, 
-  onOpenNotifications, 
+export default function Navbar({
+  currentUser,
+  isLoggedIn,
+  unreadNotificationsCount,
+  onOpenNotifications,
   onOpenActivityLog,
   onOpenPrivacyModal,
   onOpenAuth,
-  onLogout 
+  onLogout,
+  onDeleteProfile,
+  onOpenProfileSettings,
+  onOpenCreateExternalCollaborator
 }) {
   return (
     <header className="glass-panel" style={{
@@ -37,12 +40,12 @@ export default function Navbar({
           fontSize: '1.1rem',
           boxShadow: '0 0 15px rgba(99, 102, 241, 0.4)'
         }}>
-          C
+          ST
         </div>
         <div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }} className="text-gradient">
             Smart Task
-            </h2>
+          </h2>
         </div>
       </div>
 
@@ -59,23 +62,21 @@ export default function Navbar({
           </button>
         )}
 
-        {/* Activity Log Button */}
-        <button 
-          className="btn btn-secondary btn-sm"
-          onClick={onOpenActivityLog}
-          title="View System Audit Trail"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="16" y1="13" x2="8" y2="13"></line>
-            <line x1="16" y1="17" x2="8" y2="17"></line>
-          </svg>
-          Audit Logs
-        </button>
+        {/* Create External Collaborator Button for all non-external users */}
+        {isLoggedIn && !currentUser?.is_external && (
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={onOpenCreateExternalCollaborator}
+            title="Create External Collaborator Account"
+          >
+            🌐 + External Collaborator
+          </button>
+        )}
+
+
 
         {/* Notifications */}
-        <button 
+        <button
           className="btn btn-secondary btn-sm"
           style={{ position: 'relative', padding: '8px 12px' }}
           onClick={onOpenNotifications}
@@ -128,8 +129,28 @@ export default function Navbar({
                 {currentUser?.role || 'Member'}
               </span>
             </div>
-            <button 
-              className="btn btn-danger btn-sm" 
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={onOpenProfileSettings}
+              style={{ fontSize: '0.78rem', padding: '6px 10px', marginLeft: '6px' }}
+              title="Profile Settings"
+            >
+              Settings
+            </button>
+            <button
+              className="btn btn-danger btn-sm"
+              onClick={() => {
+                if (window.confirm('Are you sure you want to delete your profile? This action cannot be undone.')) {
+                  onDeleteProfile();
+                }
+              }}
+              style={{ color: '#ffffff', fontSize: '0.78rem', padding: '6px 10px', marginLeft: '6px', backgroundColor: 'var(--rose)' }}
+              title="Delete Profile"
+            >
+              Delete Profile
+            </button>
+            <button
+              className="btn btn-danger btn-sm"
               onClick={onLogout}
               style={{ fontSize: '0.78rem', padding: '6px 10px', marginLeft: '6px' }}
               title="Sign Out"

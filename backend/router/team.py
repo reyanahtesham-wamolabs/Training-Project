@@ -21,7 +21,7 @@ from services.team_service import TeamService
 
 router_team = APIRouter()
 
-@router_team.post("/create_team/", response_model=TeamOut)
+@router_team.post("/create_team", response_model=TeamOut)
 async def create_team_route(
     data: TeamCreate,
     current_user: db_User = Depends(get_current_manager),
@@ -29,7 +29,7 @@ async def create_team_route(
 ):
     return await team_service.create_team(data)
 
-@router_team.post("/add_member/", response_model=TeamMemberOut)
+@router_team.post("/add_member", response_model=TeamMemberOut)
 async def add_member_route(
     data: TeamMemberCreate,
     current_user: db_User = Depends(get_current_manager),
@@ -37,7 +37,7 @@ async def add_member_route(
 ):
     return await team_service.add_member(data.email, data.team_id)
 
-@router_team.delete("/remove_member/{member_id}/")
+@router_team.delete("/remove_member/{member_id}")
 async def remove_member_route(
     member_id: str,
     current_user: db_User = Depends(get_current_manager),
@@ -46,7 +46,7 @@ async def remove_member_route(
     await team_service.remove_member(member_id, current_user)
     return {"status": "Member Removed Successfully"}
 
-@router_team.get("/team_members/{team_id}/", response_model=list[TeamMemberOut])
+@router_team.get("/team_members/{team_id}", response_model=list[TeamMemberOut])
 async def get_team_members_route(
     team_id: str,
     current_user: db_User = Depends(get_current_user),
@@ -54,7 +54,7 @@ async def get_team_members_route(
 ):
     return await team_service.get_members(team_id, current_user)
 
-@router_team.post("/send_message/", response_model=MessageOut)
+@router_team.post("/send_message", response_model=MessageOut)
 async def send_message_route(
     data: MessageCreate,
     current_user: db_User = Depends(get_current_user),
@@ -62,7 +62,7 @@ async def send_message_route(
 ):
     return await team_service.send_message(data, current_user)
 
-@router_team.get("/team_messages/{team_id}/", response_model=list[MessageOut])
+@router_team.get("/team_messages/{team_id}", response_model=list[MessageOut])
 async def get_team_messages_route(
     team_id: str,
     current_user: db_User = Depends(get_current_user),
@@ -70,14 +70,14 @@ async def get_team_messages_route(
 ):
     return await team_service.get_messages(team_id, current_user)
 
-@router_team.get("/get_all_teams/", response_model=list[TeamOut])
+@router_team.get("/get_all_teams", response_model=list[TeamOut])
 async def get_all_teams(
     current_user: db_User = Depends(get_current_manager),
     team_service: TeamService = Depends(get_team_service),
 ):
     return await team_service.get_all_teams()
 
-@router_team.get("/all_members/")
+@router_team.get("/all_members")
 async def get_all_members(
     current_user: db_User = Depends(get_current_manager),
     team_service: TeamService = Depends(get_team_service),
@@ -85,7 +85,7 @@ async def get_all_members(
     """Admin/manager: list all team members with user name and email."""
     return await team_service.get_all_members_with_users()
 
-@router_team.get("/get_user_teams/", response_model=list[TeamOut])
+@router_team.get("/get_user_teams", response_model=list[TeamOut])
 async def get_user_teams(
     current_user: db_User = Depends(get_current_user),
     team_service: TeamService = Depends(get_team_service),

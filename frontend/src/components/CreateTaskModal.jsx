@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
 
-export default function CreateTaskModal({ projects, onClose, onCreateTask }) {
+export default function CreateTaskModal({ projects, initialProjectId, onClose, onCreateTask }) {
   const [name, setName] = useState('');
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [priority, setPriority] = useState('medium');
-  const [projectId, setProjectId] = useState(projects[0]?.id || '');
+  const [projectId, setProjectId] = useState(initialProjectId || projects[0]?.id || '');
   const [status, setStatus] = useState('planned');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name.trim() || !projectId) return;
+    const targetProjectId = initialProjectId || projectId;
+    if (!name.trim() || !targetProjectId) return;
     onCreateTask({
       name,
       schedule_date: scheduleDate,
+      due_date: dueDate || null,
       priority,
-      project_id: projectId,
+      project_id: targetProjectId,
       status
     });
   };
@@ -41,8 +44,16 @@ export default function CreateTaskModal({ projects, onClose, onCreateTask }) {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Associated Project</label>
-            <select className="form-select" value={projectId} onChange={(e) => setProjectId(e.target.value)} required>
+            <label className="form-label">
+              Associated Project {initialProjectId ? '(Workspace Locked 🔒)' : ''}
+            </label>
+            <select
+              className="form-select"
+              value={initialProjectId || projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={!!initialProjectId}
+              required
+            >
               <option value="" disabled>Select a Project</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -61,13 +72,23 @@ export default function CreateTaskModal({ projects, onClose, onCreateTask }) {
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Priority</label>
-              <select className="form-select" value={priority} onChange={(e) => setPriority(e.target.value)}>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
+              <label className="form-label">Due Date (Optional)</label>
+              <input
+                type="date"
+                className="form-input"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
             </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Priority</label>
+            <select className="form-select" value={priority} onChange={(e) => setPriority(e.target.value)}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
           </div>
 
           <div className="form-group">

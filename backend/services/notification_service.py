@@ -3,9 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from repository.notification_repository import NotificationRepo
 from schema.assignment import Assignment
 from schema.team import TeamMember
+from schema.user import User as db_user
 from schema.task import Task
-class NotificationService:
 
+
+class NotificationService:
     @staticmethod
     async def notify_user(
         user_id: str,
@@ -66,9 +68,9 @@ class NotificationService:
         related_project_id: str | None = None,
         related_message_id: str | None = None,
     ):
-        stmt=select(Assignment.user_id).join(Assignment.task).where(Task.project_id == project_id)
-        result = await session.execute(stmt)
-        user_ids = [row[0] for row in result.all() if row[0] is not None]
+        from repository.team import TeamRepo
+
+        user_ids = await TeamRepo.get_member_ids_by_project(project_id, session)
         await NotificationService.notify_users(
             user_ids=user_ids,
             subject=subject,
@@ -93,9 +95,9 @@ class NotificationService:
         related_project_id: str | None = None,
         related_message_id: str | None = None,
     ):
-        stmt = select(Assignment.user_id).where(Assignment.task_id == task_id)
-        result = await session.execute(stmt)
-        user_ids = [row[0] for row in result.all() if row[0] is not None]
+        from repository.task import TaskCrud
+
+        user_ids = await TaskCrud.get_assignee_ids_by_task(task_id, session)
         await NotificationService.notify_users(
             user_ids=user_ids,
             subject=subject,
@@ -120,9 +122,9 @@ class NotificationService:
         related_project_id: str | None = None,
         related_message_id: str | None = None,
     ):
-        stmt = select(TeamMember.user_id).where(TeamMember.team_id == team_id)
-        result = await session.execute(stmt)
-        user_ids = [row[0] for row in result.all() if row[0] is not None]
+        from repository.team import TeamRepo
+
+        user_ids = await TeamRepo.get_member_ids_by_team(team_id, session)
         await NotificationService.notify_users(
             user_ids=user_ids,
             subject=subject,
@@ -134,3 +136,7 @@ class NotificationService:
             related_project_id=related_project_id,
             related_message_id=related_message_id,
         )
+
+    @staticmethod
+    async def get_all_notifications(current_user: db_user, session: AsyncSession):
+        return await NotificationRepo.get_user_notifications(current_user.id, session)

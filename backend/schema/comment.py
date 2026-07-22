@@ -32,17 +32,17 @@ class Comment(Base):
         ForeignKey("Task.id", ondelete="CASCADE"), nullable=False
     )
     parent_comment_id: Mapped[str | None] = mapped_column(
-        ForeignKey("Comment.id", ondelete="CASCADE"), unique=True, nullable=True
+        ForeignKey("Comment.id", ondelete="CASCADE"), nullable=True
     )
 
     # Relationships
     user: Mapped["User"] = relationship()
     task: Mapped["Task"] = relationship(back_populates="comments")
     parent_comment: Mapped[Comment | None] = relationship(
-        "Comment", remote_side=[id], back_populates="reply", uselist=False
+        "Comment", remote_side=[id], back_populates="replies"
     )
-    reply: Mapped[Comment | None] = relationship(
+    replies: Mapped[list[Comment]] = relationship(
         "Comment",
         back_populates="parent_comment",
-        uselist=False,
+        cascade="all, delete-orphan",
     )

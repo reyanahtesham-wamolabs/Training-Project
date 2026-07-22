@@ -52,3 +52,15 @@ class NotificationRepo:
         await session.commit()
         await session.refresh(notification)
         return notification
+
+    @staticmethod
+    async def update_delivery_time(
+        notification: db_Notification,
+        delivered: datetime,
+        session: AsyncSession
+    ) -> db_Notification:
+        notification.delivered = delivered
+        session.add(notification)
+        await session.commit()
+        await session.refresh(notification)
+        return notification

@@ -12,6 +12,10 @@ import AuthModal from './components/AuthModal';
 import AddTeamMemberModal from './components/AddTeamMemberModal';
 import EditPrivacyModal from './components/EditPrivacyModal';
 import TeamChatModal from './components/TeamChatModal';
+import CreateTagModal from './components/CreateTagModal';
+import ProfileSettingsModal from './components/ProfileSettingsModal';
+import CreateExternalCollaboratorModal from './components/CreateExternalCollaboratorModal';
+import ProjectDetailView from './components/ProjectDetailView';
 
 import { 
   authAPI,
@@ -34,19 +38,28 @@ export default function App() {
   const [activityLogs, setActivityLogs] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [users, setUsers] = useState([]);
+  const [dbTags, setDbTags] = useState([]);
+
+  const defaultUser = {
+    id: '',
+    name: 'User',
+    email: '',
+    role: 'member',
+    privacy_level: 'high',
+    is_external: false
+  };
 
   // Authentication State
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('access_token'));
-  const [currentUser, setCurrentUser] = useState({
-    id: '',
-    name: 'Admin User',
-    email: 'admin@company.com',
-    role: 'Admin',
-    privacy_level: 'low'
-  });
+  const [currentUser, setCurrentUser] = useState(defaultUser);
 
   // Modal States
   const [selectedTask, setSelectedTask] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [taskModalProjectId, setTaskModalProjectId] = useState(null);
+  const [teamModalTeamId, setTeamModalTeamId] = useState(null);
+  const [assignUserProjectId, setAssignUserProjectId] = useState(null);
+  const [assignUserProjectMembers, setAssignUserProjectMembers] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
@@ -55,16 +68,40 @@ export default function App() {
   const [showAssignUser, setShowAssignUser] = useState(false);
   const [showAddTeamMember, setShowAddTeamMember] = useState(false);
   const [showEditPrivacy, setShowEditPrivacy] = useState(false);
+  const [showCreateTag, setShowCreateTag] = useState(false);
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [showCreateExternalCollaborator, setShowCreateExternalCollaborator] = useState(false);
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showActivityDrawer, setShowActivityDrawer] = useState(false);
   const [activeChatTeam, setActiveChatTeam] = useState(null);
+  const [toastedNotifIds, setToastedNotifIds] = useState(new Set());
+
+  const checkAndNotifyUrgentNotifications = (notifList) => {
+    if (!Array.isArray(notifList)) return;
+    const now = Date.now();
+    notifList.forEach(n => {
+      if (!n.delivered || n.read) return;
+      const deliveryTime = new Date(n.delivered).getTime();
+      const diffMinutes = (deliveryTime - now) / 60000;
+
+      if (diffMinutes >= 0 && diffMinutes <= 3 && !toastedNotifIds.has(n.id)) {
+        showToast(`⏰ Urgent Reminder (< 3 mins): ${n.subject} - ${n.text}`, 'danger');
+        setToastedNotifIds(prev => new Set(prev).add(n.id));
+      }
+    });
+  };
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [tagFilter, setTagFilter] = useState('all');
+  const [prioritySort, setPrioritySort] = useState('none');
+  const [assignmentFilter, setAssignmentFilter] = useState('all');
+  const [taskAssignmentFilter, setTaskAssignmentFilter] = useState('all');
+  const [taskProjectFilter, setTaskProjectFilter] = useState('all');
+  const [dateSort, setDateSort] = useState('none');
 
   // Toast State
   const [toast, setToast] = useState(null);
@@ -80,7 +117,13 @@ export default function App() {
 
     try {
       const fetchedProjects = await projectAPI.getAll();
-      if (Array.isArray(fetchedProjects)) setProjects(fetchedProjects);
+      if (Array.isArray(fetchedProjects)) {
+        const sanitizedProjects = fetchedProjects.map(p => ({
+          ...p,
+          tags: p.tags ? p.tags.map(t => typeof t === 'string' ? t : t.name) : []
+        }));
+        setProjects(sanitizedProjects);
+      }
     } catch {}
 
     try {
@@ -122,10 +165,18 @@ export default function App() {
 
     try {
       const fetchedNotifs = await notificationAPI.getMy();
-      if (Array.isArray(fetchedNotifs)) setNotifications(fetchedNotifs);
+      if (Array.isArray(fetchedNotifs)) {
+        setNotifications(fetchedNotifs);
+        checkAndNotifyUrgentNotifications(fetchedNotifs);
+      }
     } catch {}
 
-    if (currentUser?.role === 'admin') {
+    try {
+      const fetchedTags = await projectAPI.getTags();
+      if (Array.isArray(fetchedTags)) setDbTags(fetchedTags);
+    } catch {}
+
+    if (currentUser?.role === 'admin' || currentUser?.role === 'manager') {
       try {
         const fetchedUsers = await userManagementAPI.getAllUsers();
         if (Array.isArray(fetchedUsers)) setUsers(fetchedUsers);
@@ -134,10 +185,57 @@ export default function App() {
   };
 
   useEffect(() => {
+    const handleAutoLogout = () => {
+      setIsLoggedIn(false);
+      setCurrentUser(null);
+      showToast('Session expired. Please log in again.', 'info');
+    };
+    window.addEventListener('auth:logout', handleAutoLogout);
+    return () => window.removeEventListener('auth:logout', handleAutoLogout);
+  }, []);
+
+  // 60-Second Notification Polling & Urgent < 3 min Toast Check
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const fetchedNotifs = await notificationAPI.getMy();
+        if (Array.isArray(fetchedNotifs)) {
+          setNotifications(fetchedNotifs);
+          checkAndNotifyUrgentNotifications(fetchedNotifs);
+        }
+      } catch (err) {
+        console.warn("Notification polling failed:", err);
+      }
+    }, 60000);
+
+    return () => clearInterval(pollInterval);
+  }, [isLoggedIn, toastedNotifIds]);
+
+  useEffect(() => {
     if (isLoggedIn) {
+      const fetchUserData = async () => {
+        try {
+          const me = await authAPI.me();
+          setCurrentUser({
+            id: me.id || '',
+            name: me.name || me.email.split('@')[0],
+            email: me.email,
+            role: me.role || 'member',
+            privacy_level: me.privacy_level || 'high',
+            is_external: me.is_external || false,
+          });
+        } catch (err) {
+          console.warn("Failed to fetch user profile on reload:", err);
+        }
+      };
+
+      if (!currentUser?.id) {
+        fetchUserData();
+      }
+
       loadBackendData();
-      const interval = setInterval(loadBackendData, 3000);
-      return () => clearInterval(interval);
     } else {
       setProjects([]);
       setTasks([]);
@@ -148,7 +246,7 @@ export default function App() {
       setNotifications([]);
       setUsers([]);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, currentUser?.id, currentUser?.role]);
 
   const fetchTaskComments = async (taskId) => {
     try {
@@ -172,6 +270,9 @@ export default function App() {
       const response = await authAPI.login(credentials);
       if (response && response.access_token) {
         localStorage.setItem('access_token', response.access_token);
+        if (response.refresh_token) {
+          localStorage.setItem('refresh_token', response.refresh_token);
+        }
         // Fetch real user data from the backend
         try {
           const me = await authAPI.me();
@@ -181,6 +282,7 @@ export default function App() {
             email: me.email || credentials.email,
             role: me.role || 'member',
             privacy_level: me.privacy_level || 'high',
+            is_external: me.is_external || false,
           });
         } catch {
           // Fallback if /me fails
@@ -205,14 +307,85 @@ export default function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     setIsLoggedIn(false);
+    setCurrentUser(defaultUser);
+
+    // Reset Data States
+    setProjects([]);
+    setTasks([]);
+    setTeams([]);
+    setTeamMembers([]);
+    setCommentsMap({});
+    setActivityLogs([]);
+    setNotifications([]);
+    setUsers([]);
+    setDbTags([]);
+
+    // Reset UI States
+    setActiveTab('dashboard');
+    setSelectedProject(null);
+    setSelectedTask(null);
+
+    // Reset Filter States
+    setSearchQuery('');
+    setStatusFilter('all');
+    setCategoryFilter('all');
+    setTagFilter('all');
+    setPrioritySort('none');
+    setAssignmentFilter('all');
+    setTaskAssignmentFilter('all');
+    setTaskProjectFilter('all');
+    setDateSort('none');
+
     showToast('Logged out successfully', 'info');
   };
 
-  // Team Handlers
-  const handleAddTeamMember = async (email, teamId) => {
+  const handleDeleteProfile = async () => {
     try {
-      await teamAPI.addMember({ email, team_id: teamId });
+      await authAPI.softDeleteProfile();
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      setIsLoggedIn(false);
+      setCurrentUser(defaultUser);
+
+      // Reset Data States
+      setProjects([]);
+      setTasks([]);
+      setTeams([]);
+      setTeamMembers([]);
+      setCommentsMap({});
+      setActivityLogs([]);
+      setNotifications([]);
+      setUsers([]);
+      setDbTags([]);
+
+      // Reset UI States
+      setActiveTab('dashboard');
+      setSelectedProject(null);
+      setSelectedTask(null);
+
+      // Reset Filter States
+      setSearchQuery('');
+      setStatusFilter('all');
+      setCategoryFilter('all');
+      setTagFilter('all');
+      setPrioritySort('none');
+      setAssignmentFilter('all');
+      setTaskAssignmentFilter('all');
+      setTaskProjectFilter('all');
+      setDateSort('none');
+
+      showToast('Your profile has been deleted.', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to delete profile', 'danger');
+    }
+  };
+
+  // Team Handlers
+  const handleAddTeamMember = async (email, teamId, projectRole = 'project_member') => {
+    try {
+      await teamAPI.addMember({ email, team_id: teamId, project_role: projectRole });
       showToast(`User ${email} added to team successfully!`);
       loadBackendData();
       setShowAddTeamMember(false);
@@ -263,6 +436,17 @@ export default function App() {
     setShowCreateProject(false);
   };
 
+  const handleCreateTag = async (tagData) => {
+    try {
+      await projectAPI.createTag(tagData);
+      showToast('Tag created successfully!');
+      loadBackendData();
+    } catch (err) {
+      showToast(err.message || 'Failed to create tag', 'danger');
+    }
+    setShowCreateTag(false);
+  };
+
   const handleEditProject = async (projData) => {
     try {
       await projectAPI.update(projData);
@@ -309,6 +493,79 @@ export default function App() {
     }
   };
 
+  const handleRestoreTask = async (taskId) => {
+    try {
+      await taskAPI.update({ id: taskId, status: 'planned', soft_delete: false });
+      showToast('Task restored from bin successfully!', 'success');
+      loadBackendData();
+      if (selectedTask && selectedTask.id === taskId) {
+        setSelectedTask(prev => ({ ...prev, status: 'planned', soft_delete: false }));
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to restore task', 'danger');
+    }
+  };
+
+  const handleHardDeleteProject = async (projectId) => {
+    if (!window.confirm('Are you sure you want to PERMANENTLY delete this project? This action cannot be undone.')) return;
+    try {
+      await projectAPI.hardDelete(projectId);
+      showToast('Project permanently deleted', 'danger');
+      loadBackendData();
+    } catch (err) {
+      showToast(err.message || 'Failed to permanently delete project', 'danger');
+    }
+  };
+
+  const handleHardDeleteTask = async (taskId) => {
+    if (!window.confirm('Are you sure you want to PERMANENTLY delete this task? This action cannot be undone.')) return;
+    try {
+      await taskAPI.hardDelete(taskId);
+      showToast('Task permanently deleted', 'danger');
+      if (selectedTask && selectedTask.id === taskId) setSelectedTask(null);
+      loadBackendData();
+    } catch (err) {
+      showToast(err.message || 'Failed to permanently delete task', 'danger');
+    }
+  };
+
+  const handleHardDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to PERMANENTLY delete this user profile? This action cannot be undone.')) return;
+    try {
+      await userManagementAPI.hardDeleteUser(userId);
+      showToast('User profile permanently deleted', 'danger');
+      loadBackendData();
+    } catch (err) {
+      showToast(err.message || 'Failed to permanently delete user', 'danger');
+    }
+  };
+
+  const handleUpdateTaskPriority = async (taskId, newPriority) => {
+    try {
+      await taskAPI.update({ id: taskId, priority: newPriority });
+      showToast(`Task priority updated to ${newPriority.toUpperCase()}`, 'success');
+      loadBackendData();
+      if (selectedTask && selectedTask.id === taskId) {
+        setSelectedTask(prev => ({ ...prev, priority: newPriority }));
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to update task priority', 'danger');
+    }
+  };
+
+  const handleUpdateTaskDates = async (taskId, datePayload) => {
+    try {
+      await taskAPI.update({ id: taskId, ...datePayload });
+      showToast('Task dates updated successfully', 'success');
+      loadBackendData();
+      if (selectedTask && selectedTask.id === taskId) {
+        setSelectedTask(prev => ({ ...prev, ...datePayload }));
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to update task dates', 'danger');
+    }
+  };
+
   const handleDeleteTask = async (taskId) => {
     try {
       await taskAPI.delete(taskId);
@@ -317,6 +574,16 @@ export default function App() {
       loadBackendData();
     } catch (err) {
       showToast(err.message || 'Failed to delete task', 'danger');
+    }
+  };
+
+  const handleAddPrerequisite = async (prereqId, dependantId) => {
+    try {
+      await taskAPI.addPrerequisite(prereqId, dependantId);
+      showToast('Prerequisite linked successfully!', 'success');
+      loadBackendData();
+    } catch (err) {
+      showToast(err.message || 'Failed to add prerequisite', 'danger');
     }
   };
 
@@ -330,6 +597,26 @@ export default function App() {
     }
   };
 
+  const handleEditComment = async (commentId, newContent, taskId) => {
+    try {
+      await commentAPI.update(commentId, { content: newContent });
+      showToast('Comment updated', 'success');
+      fetchTaskComments(taskId);
+    } catch (err) {
+      showToast(err.message || 'Failed to update comment', 'danger');
+    }
+  };
+
+  const handleDeleteComment = async (commentId, taskId) => {
+    try {
+      await commentAPI.delete(commentId);
+      showToast('Comment deleted', 'info');
+      fetchTaskComments(taskId);
+    } catch (err) {
+      showToast(err.message || 'Failed to delete comment', 'danger');
+    }
+  };
+
   const handleAssignUser = async (data) => {
     try {
       await userManagementAPI.assignUser(data);
@@ -339,6 +626,25 @@ export default function App() {
       showToast(err.message || 'Failed to assign user', 'danger');
     }
     setShowAssignUser(false);
+  };
+
+  const handleUnassignUser = async (data) => {
+    try {
+      await userManagementAPI.unassignUser(data);
+      showToast('Task assignment deleted successfully!');
+      await loadBackendData();
+      if (selectedTask && selectedTask.id === data.task_id) {
+        const updatedTasks = await taskAPI.getAll();
+        if (Array.isArray(updatedTasks)) {
+          setTasks(updatedTasks);
+          const currentT = updatedTasks.find(t => t.id === data.task_id);
+          if (currentT) setSelectedTask(currentT);
+        }
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to delete task assignment', 'danger');
+      throw err;
+    }
   };
 
   const handleChangePrivacy = async (newLevel) => {
@@ -356,7 +662,7 @@ export default function App() {
       id: `log-${Date.now()}`,
       action_type,
       message,
-      modified_by_user_id: currentUser.name,
+      modified_by_user_id: currentUser?.name || 'Guest',
       task_id,
       project_id,
       change_time: new Date().toISOString()
@@ -366,8 +672,21 @@ export default function App() {
 
   // Collect all unique tags from projects
   const allAvailableTags = Array.from(
-    new Set(projects.flatMap(p => p.tags || []))
+    new Set([
+      ...dbTags.map(t => t.name),
+      ...projects.flatMap(p => p.tags || [])
+    ])
   );
+
+  // Set of project IDs assigned to the current user (via team membership or task assignment)
+  const userAssignedProjectIds = new Set([
+    ...teams
+      .filter(t => teamMembers.some(m => (m.user_id === currentUser?.id || m.email === currentUser?.email) && m.team_id === t.id))
+      .map(t => t.project_id),
+    ...tasks
+      .filter(t => t.assignments && t.assignments.some(a => a.user_id === currentUser?.id || a.user_email === currentUser?.email))
+      .map(t => t.project_id)
+  ]);
 
   // Filtered Projects List
   const filteredProjects = projects.filter(p => {
@@ -375,20 +694,83 @@ export default function App() {
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
     const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
     const matchesTag = tagFilter === 'all' || (p.tags && p.tags.includes(tagFilter));
-    return matchesSearch && matchesStatus && matchesCategory && matchesTag;
+    const matchesAssignment = assignmentFilter === 'all' || (assignmentFilter === 'assigned_to_me' && userAssignedProjectIds.has(p.id));
+    return matchesSearch && matchesStatus && matchesCategory && matchesTag && matchesAssignment;
   });
 
   // Filtered Tasks List
+  const priorityRank = { high: 3, medium: 2, low: 1 };
   const filteredTasks = tasks.filter(t => {
     const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
     const parentProject = projects.find(p => p.id === t.project_id);
     const matchesCategory = categoryFilter === 'all' || (parentProject && parentProject.category === categoryFilter);
     const matchesTag = tagFilter === 'all' || (parentProject && parentProject.tags && parentProject.tags.includes(tagFilter));
-    return matchesSearch && matchesStatus && matchesCategory && matchesTag;
+    const matchesTaskAssignment = taskAssignmentFilter === 'all' || 
+      (taskAssignmentFilter === 'assigned_to_me' && (
+        (t.assigned_user_ids && t.assigned_user_ids.includes(currentUser?.id)) ||
+        (t.assigned_user_emails && t.assigned_user_emails.includes(currentUser?.email))
+      ));
+    const matchesProject = taskProjectFilter === 'all' || t.project_id === taskProjectFilter;
+    const isNotSoftDeleted = !t.soft_delete;
+
+    return isNotSoftDeleted && matchesSearch && matchesStatus && matchesCategory && matchesTag && matchesTaskAssignment && matchesProject;
+  }).sort((a, b) => {
+    if (dateSort === 'schedule_asc') {
+      return (a.schedule_date || '9999-99-99').localeCompare(b.schedule_date || '9999-99-99');
+    }
+    if (dateSort === 'schedule_desc') {
+      return (b.schedule_date || '').localeCompare(a.schedule_date || '');
+    }
+    if (dateSort === 'due_asc') {
+      return (a.due_date || '9999-99-99').localeCompare(b.due_date || '9999-99-99');
+    }
+    if (dateSort === 'due_desc') {
+      return (b.due_date || '').localeCompare(a.due_date || '');
+    }
+    if (prioritySort === 'high_first') {
+      return (priorityRank[b.priority?.toLowerCase()] || 0) - (priorityRank[a.priority?.toLowerCase()] || 0);
+    }
+    if (prioritySort === 'low_first') {
+      return (priorityRank[a.priority?.toLowerCase()] || 0) - (priorityRank[b.priority?.toLowerCase()] || 0);
+    }
+    return 0;
   });
 
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const assignedProjectsCount = projects.length;
+
+  // Filter tasks specifically assigned to current user
+  const userAssignedTasks = tasks.filter(t => 
+    (t.assigned_user_ids && t.assigned_user_ids.includes(currentUser?.id)) ||
+    (t.assigned_user_emails && t.assigned_user_emails.includes(currentUser?.email))
+  );
+
+  const assignedTasksCount = userAssignedTasks.length;
+  const delayedTasksCount = userAssignedTasks.filter(t => {
+    if (!t.due_date || t.status === 'finished') return false;
+    return t.due_date < todayStr;
+  }).length;
+
+  const isOverallAdminOrManager = ['admin', 'manager'].includes(currentUser?.role?.toLowerCase());
+
+  const canManageProject = (project) => {
+    if (isOverallAdminOrManager) return true;
+    const projectTeam = teams.find(t => t.project_id === project.id);
+    if (!projectTeam) return false;
+    return teamMembers.some(m => 
+      m.team_id === projectTeam.id && 
+      (m.user_id === currentUser?.id || m.email === currentUser?.email) && 
+      m.project_role === 'project_admin'
+    );
+  };
+
+  const canAssignUser = isOverallAdminOrManager || teamMembers.some(m => 
+    (m.user_id === currentUser?.id || m.email === currentUser?.email) && 
+    m.project_role === 'project_admin'
+  );
 
   return (
     <div className="app-container">
@@ -423,9 +805,11 @@ export default function App() {
           unreadNotificationsCount={unreadCount}
           onOpenNotifications={() => setShowNotifications(true)}
           onOpenActivityLog={() => setShowActivityDrawer(true)}
+          onLogout={handleLogout} 
+          onOpenExternalModal={() => setShowCreateExternal(true)}
           onOpenPrivacyModal={() => setShowEditPrivacy(true)}
-          onOpenAuth={() => setShowAuthModal(true)}
-          onLogout={handleLogout}
+          unreadNotificationCount={unreadCount}
+          onToggleNotifications={() => setShowNotifications(prev => !prev)}
         />
 
         <main className="content-body">
@@ -435,35 +819,46 @@ export default function App() {
               <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h1 style={{ fontSize: '1.8rem', fontWeight: 800 }} className="text-gradient">
-                    Welcome back, {currentUser.name}! 👋
+                    Welcome back, {currentUser?.name || 'User'}! 👋
                   </h1>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem' }}>
                     Enterprise task overview, team membership controls, and privacy settings.
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button className="btn btn-secondary" onClick={() => setShowCreateProject(true)}>+ New Project</button>
-                  <button className="btn btn-primary" onClick={() => setShowCreateTask(true)}>+ Create Task</button>
+                  {!currentUser?.is_external && (
+                    <>
+                      {isOverallAdminOrManager && (
+                        <button className="btn btn-secondary" onClick={() => setShowCreateProject(true)}>+ New Project</button>
+                      )}
+                      <button className="btn btn-primary" onClick={() => setShowCreateTask(true)}>+ Create Task</button>
+                    </>
+                  )}
                 </div>
               </div>
 
               {/* Metric Stats Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '18px', marginBottom: '32px' }}>
                 <div className="glass-panel" style={{ padding: '20px' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Projects</span>
-                  <div style={{ fontSize: '2.2rem', fontWeight: 800, marginTop: '4px', color: 'var(--primary)' }}>{projects.length}</div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--emerald)' }}>● {projects.filter(p => !p.archived).length} Active</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>📂 Assigned Projects</span>
+                  <div style={{ fontSize: '2.2rem', fontWeight: 800, marginTop: '4px', color: 'var(--primary)' }}>{assignedProjectsCount}</div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--emerald)' }}>● {projects.filter(p => !p.archived).length} Active Projects</span>
                 </div>
+
                 <div className="glass-panel" style={{ padding: '20px' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Active Tasks</span>
-                  <div style={{ fontSize: '2.2rem', fontWeight: 800, marginTop: '4px', color: 'var(--secondary)' }}>{tasks.length}</div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--cyan)' }}>● {tasks.filter(t => t.status === 'in_progress').length} In Progress</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>📋 Assigned Tasks</span>
+                  <div style={{ fontSize: '2.2rem', fontWeight: 800, marginTop: '4px', color: 'var(--secondary)' }}>{assignedTasksCount}</div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--cyan)' }}>● {userAssignedTasks.filter(t => t.status === 'in_progress').length} In Progress</span>
                 </div>
+
                 <div className="glass-panel" style={{ padding: '20px' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Audit Logs</span>
-                  <div style={{ fontSize: '2.2rem', fontWeight: 800, marginTop: '4px', color: 'var(--cyan)' }}>{activityLogs.length}</div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Recorded Events</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>⏰ Delayed Tasks</span>
+                  <div style={{ fontSize: '2.2rem', fontWeight: 800, marginTop: '4px', color: delayedTasksCount > 0 ? 'var(--rose)' : 'var(--emerald)' }}>{delayedTasksCount}</div>
+                  <span style={{ fontSize: '0.75rem', color: delayedTasksCount > 0 ? 'var(--rose)' : 'var(--emerald)' }}>
+                    {delayedTasksCount > 0 ? `⚠️ ${delayedTasksCount} Past Due Date` : '✓ All Tasks On Schedule'}
+                  </span>
                 </div>
+
                 <div 
                   className="glass-panel" 
                   onClick={() => setShowEditPrivacy(true)}
@@ -474,8 +869,8 @@ export default function App() {
                     <span style={{ fontSize: '0.75rem', color: 'var(--primary)' }}>Edit ✎</span>
                   </div>
                   <div style={{ marginTop: '8px' }}>
-                    <span className={`badge badge-${currentUser.privacy_level}`} style={{ fontSize: '0.9rem', padding: '6px 14px' }}>
-                      🔒 {currentUser.privacy_level.toUpperCase()}
+                    <span className={`badge badge-${currentUser?.privacy_level || 'low'}`} style={{ fontSize: '0.9rem', padding: '6px 14px' }}>
+                      🔒 {currentUser?.privacy_level?.toUpperCase() || 'LOW'}
                     </span>
                   </div>
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '6px', display: 'block' }}>Task Visibility Filter</span>
@@ -510,13 +905,50 @@ export default function App() {
 
           {/* Projects Tab */}
           {activeTab === 'projects' && (
-            <div>
+            selectedProject ? (
+              <ProjectDetailView 
+                project={selectedProject}
+                projects={projects}
+                tasks={tasks}
+                teams={teams}
+                teamMembers={teamMembers}
+                commentsMap={commentsMap}
+                currentUser={currentUser}
+                onBack={() => setSelectedProject(null)}
+                onSelectTask={handleSelectTask}
+                onCreateTaskForProject={(projId) => {
+                  setTaskModalProjectId(projId);
+                  setShowCreateTask(true);
+                }}
+                onAssignUserForProject={(projId, members) => {
+                  setAssignUserProjectId(projId);
+                  setAssignUserProjectMembers(members);
+                  setShowAssignUser(true);
+                }}
+                onAddTeamMemberForTeam={(teamId) => {
+                  setTeamModalTeamId(teamId);
+                  setShowAddTeamMember(true);
+                }}
+                onRemoveTeamMember={handleRemoveTeamMember}
+                onEditProject={(p) => {
+                  setEditingProject(p);
+                  setShowEditProject(true);
+                }}
+                onArchiveProject={handleArchiveProject}
+              />
+            ) : (
+              <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <div>
                   <h1 style={{ fontSize: '1.6rem', fontWeight: 800 }}>Project Workspaces</h1>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Filter projects by category, tags, and status.</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowCreateProject(true)}>+ New Project</button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button className="btn btn-secondary" onClick={() => setShowCreateTag(true)}>+ Create Tag</button>
+                  {isOverallAdminOrManager && (
+                    <button className="btn btn-primary" onClick={() => setShowCreateProject(true)}>+ New Project</button>
+                  )}
+                </div>
               </div>
 
               {/* Multi-Feature Search & Filter Bar */}
@@ -577,10 +1009,23 @@ export default function App() {
                   </select>
                 </div>
 
-                {(categoryFilter !== 'all' || tagFilter !== 'all' || statusFilter !== 'all' || searchQuery) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Assignment:</span>
+                  <select 
+                    className="form-select" 
+                    value={assignmentFilter} 
+                    onChange={(e) => setAssignmentFilter(e.target.value)} 
+                    style={{ maxWidth: '170px' }}
+                  >
+                    <option value="all">All Projects</option>
+                    <option value="assigned_to_me">👤 Assigned to Me</option>
+                  </select>
+                </div>
+
+                {(categoryFilter !== 'all' || tagFilter !== 'all' || statusFilter !== 'all' || assignmentFilter !== 'all' || searchQuery) && (
                   <button 
                     className="btn btn-secondary btn-sm" 
-                    onClick={() => { setCategoryFilter('all'); setTagFilter('all'); setStatusFilter('all'); setSearchQuery(''); }}
+                    onClick={() => { setCategoryFilter('all'); setTagFilter('all'); setStatusFilter('all'); setAssignmentFilter('all'); setSearchQuery(''); }}
                     style={{ marginLeft: 'auto' }}
                   >
                     Reset Filters
@@ -625,20 +1070,30 @@ export default function App() {
                         </span>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
-                            className="btn btn-sm btn-secondary"
-                            onClick={() => {
-                              setEditingProject(p);
-                              setShowEditProject(true);
-                            }}
+                            className="btn btn-sm btn-primary"
+                            onClick={() => setSelectedProject(p)}
                           >
-                            Edit
+                            🚀 Open Workspace
                           </button>
-                          <button 
-                            className={`btn btn-sm ${p.archived ? 'btn-secondary' : 'btn-danger'}`}
-                            onClick={() => handleArchiveProject(p.id, !p.archived)}
-                          >
-                            {p.archived ? 'Unarchive' : 'Archive'}
-                          </button>
+                          {canManageProject(p) && (
+                            <>
+                              <button
+                                className="btn btn-sm btn-secondary"
+                                onClick={() => {
+                                  setEditingProject(p);
+                                  setShowEditProject(true);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                className={`btn btn-sm ${p.archived ? 'btn-secondary' : 'btn-danger'}`}
+                                onClick={() => handleArchiveProject(p.id, !p.archived)}
+                              >
+                                {p.archived ? 'Unarchive' : 'Archive'}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -646,7 +1101,8 @@ export default function App() {
                 )}
               </div>
             </div>
-          )}
+          )
+        )}
 
           {/* Tasks Tab */}
           {activeTab === 'tasks' && (
@@ -657,8 +1113,14 @@ export default function App() {
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Filter tasks by name, category, or project tags.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button className="btn btn-secondary" onClick={() => setShowAssignUser(true)}>👤 Assign User</button>
-                  <button className="btn btn-primary" onClick={() => setShowCreateTask(true)}>+ Create Task</button>
+                  {!currentUser?.is_external && (
+                    <>
+                      {canAssignUser && (
+                        <button className="btn btn-secondary" onClick={() => setShowAssignUser(true)}>👤 Assign User</button>
+                      )}
+                      <button className="btn btn-primary" onClick={() => setShowCreateTask(true)}>+ Create Task</button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -693,6 +1155,35 @@ export default function App() {
                     ))}
                   </select>
                 </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Assignment:</span>
+                  <select className="form-select" value={taskAssignmentFilter} onChange={(e) => setTaskAssignmentFilter(e.target.value)} style={{ maxWidth: '170px' }}>
+                    <option value="all">All Tasks</option>
+                    <option value="assigned_to_me">Assigned to Me 👤</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Project:</span>
+                  <select className="form-select" value={taskProjectFilter} onChange={(e) => setTaskProjectFilter(e.target.value)} style={{ maxWidth: '180px' }}>
+                    <option value="all">All Projects</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Sort Dates:</span>
+                  <select className="form-select" value={dateSort} onChange={(e) => setDateSort(e.target.value)} style={{ maxWidth: '210px' }}>
+                    <option value="none">No Date Sorting</option>
+                    <option value="schedule_asc">Schedule Date (Earliest First)</option>
+                    <option value="schedule_desc">Schedule Date (Latest First)</option>
+                    <option value="due_asc">Due Date (Earliest First)</option>
+                    <option value="due_desc">Due Date (Latest First)</option>
+                  </select>
+                </div>
               </div>
 
               {/* Tasks List */}
@@ -713,7 +1204,19 @@ export default function App() {
                         <span className={`badge badge-${t.priority?.toLowerCase()}`}>{t.priority}</span>
                         <div>
                           <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>{t.name}</h4>
-                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Project: {t.project_id}</span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', marginTop: '2px' }}>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                              📁 {projects.find(p => p.id === t.project_id)?.name || 'Unknown Project'}
+                            </span>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                              📅 <strong>Scheduled:</strong> {t.schedule_date || 'N/A'} | <strong>Due:</strong> {t.due_date || 'N/A'}
+                            </span>
+                            {t.assigned_user_names && t.assigned_user_names.length > 0 && (
+                              <span style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                👤 Assigned: {t.assigned_user_names.join(', ')}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -748,11 +1251,8 @@ export default function App() {
                   const members = teamMembers.filter(m => m.team_id === team.id);
                   return (
                     <div key={team.id} className="glass-panel" style={{ padding: '24px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <div>
-                          <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{team.name}</h3>
-                          <span className="badge badge-admin" style={{ marginTop: '4px', display: 'inline-block' }}>Team ID: {team.id}</span>
-                        </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '1.3rem', fontWeight: 700 }}>{team.name}</h3>
                         <button 
                           className="btn btn-primary btn-sm" 
                           onClick={() => setActiveChatTeam(team)}
@@ -802,6 +1302,150 @@ export default function App() {
             <ActivityLogView logs={activityLogs} />
           )}
 
+          {/* Recycle Bin / Trash Tab */}
+          {activeTab === 'bin' && (
+            <div>
+              <div style={{ marginBottom: '24px' }}>
+                <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0 0 6px 0' }}>🗑️ Recycle Bin & Trash</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  Manage archived projects and soft-deleted tasks. You can restore them back anytime.
+                </p>
+              </div>
+
+              {/* Archived Projects */}
+              <div className="glass-panel" style={{ padding: '24px', marginBottom: '28px' }}>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  📁 Archived Projects ({projects.filter(p => p.archived || p.soft_delete).length})
+                </h2>
+
+                {projects.filter(p => p.archived || p.soft_delete).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                    No archived projects in recycle bin.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                    {projects.filter(p => p.archived || p.soft_delete).map(p => (
+                      <div key={p.id} className="glass-panel" style={{ padding: '18px', borderLeft: '3px solid var(--rose)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                          <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>{p.name}</h3>
+                          <span className="badge badge-archived">Archived</span>
+                        </div>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                          Category: {p.category} | Created: {p.start_date || 'N/A'}
+                        </p>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ flex: 1 }}
+                            onClick={() => handleArchiveProject(p.id, false)}
+                          >
+                            ♻️ Restore
+                          </button>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            style={{ flex: 1 }}
+                            onClick={() => handleHardDeleteProject(p.id)}
+                          >
+                            🔴 Delete Permanently
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Archived / Soft-Deleted Tasks */}
+              <div className="glass-panel" style={{ padding: '24px', marginBottom: '28px' }}>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  📋 Archived & Deleted Tasks ({tasks.filter(t => t.status === 'archived' || t.soft_delete).length})
+                </h2>
+
+                {tasks.filter(t => t.status === 'archived' || t.soft_delete).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                    No archived or deleted tasks in recycle bin.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {tasks.filter(t => t.status === 'archived' || t.soft_delete).map(t => {
+                      const parentProject = projects.find(p => p.id === t.project_id);
+                      return (
+                        <div key={t.id} className="glass-panel" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{t.name}</span>
+                              <span className={`badge badge-${t.priority?.toLowerCase() || 'medium'}`}>{t.priority}</span>
+                            </div>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              Project: {parentProject ? parentProject.name : 'Unassigned'} | Due: {t.due_date || 'N/A'}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleRestoreTask(t.id)}
+                            >
+                              ♻️ Restore
+                            </button>
+                            <button
+                              className="btn btn-danger btn-sm"
+                              onClick={() => handleHardDeleteTask(t.id)}
+                            >
+                              🔴 Delete Permanently
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Soft-Deleted Profiles */}
+              <div className="glass-panel" style={{ padding: '24px' }}>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  👤 Deleted User Profiles ({users.filter(u => u.soft_delete).length})
+                </h2>
+
+                {users.filter(u => u.soft_delete).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                    No soft-deleted user profiles in recycle bin.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {users.filter(u => u.soft_delete).map(u => (
+                      <div key={u.id} className="glass-panel" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{u.name}</span>
+                            <span className="badge badge-archived">Soft Deleted</span>
+                          </div>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            Email: {u.email} | Role: {u.role}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleModifyUserStatus(u.email, true)}
+                          >
+                            ♻️ Restore
+                          </button>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleHardDeleteUser(u.id)}
+                          >
+                            🔴 Delete Permanently
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Users Management Tab (Admin Only) */}
           {activeTab === 'users' && currentUser?.role === 'admin' && (
             <div className="glass-panel" style={{ padding: '24px' }}>
@@ -835,7 +1479,7 @@ export default function App() {
                             style={{ padding: '4px 8px', width: 'auto', display: 'inline-block' }}
                             value={u.role.value || u.role} 
                             onChange={(e) => handleModifyUserRole(u.email, e.target.value)}
-                            disabled={u.email === currentUser.email} // Prevent admin from changing own role easily
+                            disabled={u.email === currentUser?.email} // Prevent admin from changing own role easily
                           >
                             <option value="member">Member</option>
                             <option value="manager">Manager</option>
@@ -848,7 +1492,7 @@ export default function App() {
                           </span>
                         </td>
                         <td style={{ padding: '12px' }}>
-                          {u.email !== currentUser.email && (
+                          {u.email !== currentUser?.email && (
                             <button 
                               className={`btn btn-sm ${u.active ? 'btn-danger' : 'btn-primary'}`} 
                               style={{ padding: '4px 10px', fontSize: '0.75rem' }}
@@ -879,8 +1523,8 @@ export default function App() {
               <div className="glass-panel" style={{ padding: '20px', marginBottom: '24px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Current Privacy Level</span>
                 <div style={{ marginTop: '8px' }}>
-                  <span className={`badge badge-${currentUser.privacy_level}`} style={{ fontSize: '1rem', padding: '8px 16px' }}>
-                    🔒 {currentUser.privacy_level.toUpperCase()}
+                  <span className={`badge badge-${currentUser?.privacy_level || 'low'}`} style={{ fontSize: '1rem', padding: '8px 16px' }}>
+                    🔒 {currentUser?.privacy_level?.toUpperCase() || 'LOW'}
                   </span>
                 </div>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '12px' }}>
@@ -902,7 +1546,7 @@ export default function App() {
 
       {showEditPrivacy && (
         <EditPrivacyModal
-          currentLevel={currentUser.privacy_level}
+          currentLevel={currentUser?.privacy_level || 'high'}
           onClose={() => setShowEditPrivacy(false)}
           onSavePrivacy={handleChangePrivacy}
         />
@@ -911,7 +1555,9 @@ export default function App() {
       {showAddTeamMember && (
         <AddTeamMemberModal
           teams={teams}
-          onClose={() => setShowAddTeamMember(false)}
+          users={users}
+          initialTeamId={teamModalTeamId}
+          onClose={() => { setShowAddTeamMember(false); setTeamModalTeamId(null); }}
           onAddMember={handleAddTeamMember}
         />
       )}
@@ -919,11 +1565,31 @@ export default function App() {
       {selectedTask && (
         <TaskDetailModal
           task={selectedTask}
+          projects={projects}
+          allTasks={tasks}
+          teams={teams}
+          users={users}
+          teamMembers={teamMembers}
           comments={commentsMap[selectedTask.id] || []}
+          currentUser={currentUser}
           onClose={() => setSelectedTask(null)}
           onAddComment={handleAddComment}
+          onEditComment={handleEditComment}
+          onDeleteComment={handleDeleteComment}
           onUpdateStatus={handleUpdateTaskStatus}
+          onUpdatePriority={handleUpdateTaskPriority}
+          onUpdateDates={handleUpdateTaskDates}
+          onAddPrerequisite={handleAddPrerequisite}
           onDeleteTask={handleDeleteTask}
+          onUnassignUser={handleUnassignUser}
+          onAssignUser={handleAssignUser}
+        />
+      )}
+
+      {showCreateTag && (
+        <CreateTagModal 
+          onClose={() => setShowCreateTag(false)}
+          onCreateTag={handleCreateTag}
         />
       )}
 
@@ -931,6 +1597,7 @@ export default function App() {
         <CreateProjectModal
           onClose={() => setShowCreateProject(false)}
           onCreateProject={handleCreateProject}
+          availableTags={allAvailableTags}
         />
       )}
 
@@ -938,25 +1605,39 @@ export default function App() {
         <EditProjectModal
           project={editingProject}
           onClose={() => {
-            setShowEditProject(false);
             setEditingProject(null);
+            setShowEditProject(false);
           }}
           onEditProject={handleEditProject}
+          availableTags={allAvailableTags}
+          tasks={tasks}
+          users={users}
+          currentUser={currentUser}
+          onAssignUser={handleAssignUser}
         />
       )}
 
       {showCreateTask && (
         <CreateTaskModal
           projects={projects}
-          onClose={() => setShowCreateTask(false)}
+          initialProjectId={taskModalProjectId}
+          onClose={() => { setShowCreateTask(false); setTaskModalProjectId(null); }}
           onCreateTask={handleCreateTask}
         />
       )}
 
       {showAssignUser && (
         <AssignUserModal
-          tasks={tasks}
-          onClose={() => setShowAssignUser(false)}
+          tasks={assignUserProjectId ? tasks.filter(t => t.project_id === assignUserProjectId) : tasks}
+          users={users}
+          teamMembers={teamMembers}
+          projectTeamMembers={assignUserProjectMembers}
+          currentUser={currentUser}
+          onClose={() => {
+            setShowAssignUser(false);
+            setAssignUserProjectId(null);
+            setAssignUserProjectMembers(null);
+          }}
           onAssignUser={handleAssignUser}
         />
       )}
@@ -966,10 +1647,17 @@ export default function App() {
           notifications={notifications}
           onClose={() => setShowNotifications(false)}
           onMarkAsRead={async (id) => {
-            // Optimistic UI update immediately
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-            // Persist to backend
             try { await notificationAPI.markRead(id); } catch {}
+          }}
+          onUpdateDeliveryTime={async (id, delivered) => {
+            try {
+              await notificationAPI.updateDeliveryTime(id, delivered);
+              showToast('Notification delivery time rescheduled!', 'success');
+              loadBackendData();
+            } catch (err) {
+              showToast(err.message || 'Failed to reschedule delivery time', 'danger');
+            }
           }}
         />
       )}
@@ -988,6 +1676,23 @@ export default function App() {
           teamMembers={teamMembers} 
           currentUser={currentUser} 
           onClose={() => setActiveChatTeam(null)} 
+        />
+      )}
+
+      {showProfileSettings && (
+        <ProfileSettingsModal
+          currentUser={currentUser}
+          onClose={() => setShowProfileSettings(false)}
+          loadBackendData={loadBackendData}
+        />
+      )}
+
+      {showCreateExternalCollaborator && (
+        <CreateExternalCollaboratorModal
+          projects={projects}
+          onClose={() => setShowCreateExternalCollaborator(false)}
+          onSuccess={loadBackendData}
+          showToast={showToast}
         />
       )}
     </div>

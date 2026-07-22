@@ -32,7 +32,7 @@ class CommentCrud:
             select(db_Comment)
             .options(
                 selectinload(db_Comment.user),
-                selectinload(db_Comment.reply).selectinload(db_Comment.user),
+                selectinload(db_Comment.replies).selectinload(db_Comment.user),
             )
             .where(db_Comment.id == comment_id)
         )
@@ -45,7 +45,7 @@ class CommentCrud:
             select(db_Comment)
             .options(
                 selectinload(db_Comment.user),
-                selectinload(db_Comment.reply).selectinload(db_Comment.user),
+                selectinload(db_Comment.replies).selectinload(db_Comment.user),
             )
             .where(db_Comment.task_id == task_id)
             .where(db_Comment.parent_comment_id == None)
@@ -85,12 +85,13 @@ class CommentCrud:
 
     @staticmethod
     async def is_project_admin(user_id: str, project_id: str, session: AsyncSession) -> bool:
-        """Check if a user holds the project_admin role on any task in the given project."""
+        """Check if a user holds the project_admin role for the given project."""
+        from schema.team import TeamMember, Team
         stmt = select(exists().where(
-            db_Assignment.user_id == user_id,
-            db_Assignment.role == AssignmentRole.project_admin,
-            db_Assignment.task_id.in_(
-                select(db_Task.id).where(db_Task.project_id == project_id)
+            TeamMember.user_id == user_id,
+            TeamMember.project_role == AssignmentRole.project_admin,
+            TeamMember.team_id.in_(
+                select(Team.id).where(Team.project_id == project_id)
             )
         ))
         result = await session.execute(stmt)

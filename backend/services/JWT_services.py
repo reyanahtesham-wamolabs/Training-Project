@@ -43,21 +43,15 @@ class  TokenFunctionality:
 
     @staticmethod
     async def ensure_valid_access_token(access_token: str, session) -> dict:
-        """
-        - {"status": "valid", "payload": <payload>} when access token is valid
-        - {"status": "login_required"} when token expired and no valid refresh token exists
-        """
         try:
             payload = TokenFunctionality.decode_token(access_token)
             if payload.get("type") != "access":
                 return {"status": "login_required"}
             return {"status": "valid", "payload": payload}
         except jwt.ExpiredSignatureError:
-            # decode without verifying expiration to extract subject
             try:
                 payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
             except jwt.InvalidTokenError:
-                # signature invalid
                 raise
 
             user_id = payload.get("sub")

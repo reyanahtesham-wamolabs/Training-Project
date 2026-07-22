@@ -21,19 +21,19 @@ from dependencies.authorization import get_current_user, get_current_admin
 router = APIRouter()
 
 
-@router.post("/signup_user/")
+@router.post("/signup_user")
 async def signup(user_data: CreateUser, session: AsyncSession = Depends(get_db)):
     userCompleteData = await UserAuthenticationServices.user_signup(user_data, session)
     return {"status": "User Created Successfully", "User Data": userCompleteData}
 
 
-@router.post("/login/")
+@router.post("/login")
 async def login(user_data: UserLogin, session: AsyncSession = Depends(get_db)):
     data = await UserAuthenticationServices.user_login(user_data, session)
     return data
 
 
-@router.post("/logout/")
+@router.post("/logout")
 async def logout(
     session: AsyncSession = Depends(get_db),
     current_user: db_User = Depends(get_current_user),
@@ -50,7 +50,7 @@ async def refresh(token: RefreshToken, session: AsyncSession = Depends(get_db)):
     return result
 
 
-@router.post("/change_password/")
+@router.post("/change_password")
 async def change_password(
     user_data: ChangePassword,
     session: AsyncSession = Depends(get_db),
@@ -62,7 +62,7 @@ async def change_password(
     return result
 
 
-@router.post("/change_email/")
+@router.post("/change_email")
 async def change_email(
     user_data: ChangeEmail,
     session: AsyncSession = Depends(get_db),
@@ -74,7 +74,7 @@ async def change_email(
     return result
 
 
-@router.post("/change_name/")
+@router.post("/change_name")
 async def change_name(
     user_data: ChangeName,
     session: AsyncSession = Depends(get_db),
