@@ -7,7 +7,7 @@ from dependencies.authorization import (
 )
 from schema.user import User as db_User
 from services.user_services_management import UserManagementService
-from models.user_model import UserPrivacy, CreateAssignUser, ChangeUserRole, CreateExternalCollaborator
+from models.user_model import UserPrivacy, CreateAssignUser, ChangeUserRole, CreateExternalCollaborator, UnassignUser
 from models.user_modification import ChangeStatus
 
 router_user_management = APIRouter()
@@ -77,6 +77,15 @@ async def assign_user(
     return assigned_result
 
 
+@router_user_management.post("/unassign_user")
+async def unassign_user(
+    data: UnassignUser,
+    user_service: Annotated[UserManagementService, Depends(get_user_service)],
+    current_user: db_User = Depends(get_current_user),
+):
+    return await user_service.unassign_user(data, current_user=current_user)
+
+
 @router_user_management.post("/change_user_role")
 async def change_user_role(
     assignment: ChangeUserRole,
@@ -90,7 +99,7 @@ async def change_user_role(
 @router_user_management.get("/get_all_users")
 async def get_all_users(
     user_service: Annotated[UserManagementService, Depends(get_user_service)],
-    current_user: db_User = Depends(get_current_admin),
+    current_user: db_User = Depends(get_current_user),
 ):
     """Get All Users"""
     all_users = await user_service.get_all_users()

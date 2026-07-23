@@ -30,6 +30,9 @@ export const authAPI = {
   login: (data) => apiFetch('/Auth/login', { method: 'POST', body: JSON.stringify(data) }),
   signup: (data) => apiFetch('/Auth/signup_user', { method: 'POST', body: JSON.stringify(data) }),
   verifyOtp: (code, email) => apiFetch('/Auth/verify_otp', { method: 'POST', body: JSON.stringify({ otp_code: code, user_email: email }) }),
+  changeName: (data) => apiFetch('/Auth/change_name', { method: 'POST', body: JSON.stringify(data) }),
+  changeEmail: (data) => apiFetch('/Auth/change_email', { method: 'POST', body: JSON.stringify(data) }),
+  changePassword: (data) => apiFetch('/Auth/change_password', { method: 'POST', body: JSON.stringify(data) }),
   me: () => apiFetch('/User/me'),
   softDeleteProfile: () => apiFetch('/User/soft_delete_user', { method: 'PATCH' }),
 };

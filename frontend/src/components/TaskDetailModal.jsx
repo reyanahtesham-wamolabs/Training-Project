@@ -331,33 +331,39 @@ export default function TaskDetailModal({
                   )}
                   {task.assignments && task.assignments.length > 0 ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {task.assignments.map((ass) => (
-                        <span key={ass.id || ass.user_id} className="badge badge-admin" style={{ fontSize: '0.8rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          👤 {ass.user_name}
-                          {canDeleteAssignment && (
-                            <button
-                              title="Delete assignment"
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#ef4444',
-                                cursor: 'pointer',
-                                padding: '0 2px',
-                                fontSize: '0.85rem',
-                                lineHeight: 1,
-                                fontWeight: 'bold'
-                              }}
-                              disabled={assignLoading}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteAssignment(ass.user_email, ass.user_id);
-                              }}
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </span>
-                      ))}
+                      {task.assignments.map((ass) => {
+                        const uId = ass.user_id || ass.user?.id || ass.id;
+                        const uEmail = ass.user_email || ass.user?.email || ass.email;
+                        const uName = ass.user_name || ass.user?.name || ass.name || uEmail || 'Assigned Member';
+
+                        return (
+                          <span key={ass.id || uId} className="badge badge-admin" style={{ fontSize: '0.8rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            👤 {uName}
+                            {canDeleteAssignment && (
+                              <button
+                                title="Delete assignment"
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: '0 2px',
+                                  fontSize: '0.85rem',
+                                  lineHeight: 1,
+                                  fontWeight: 'bold'
+                                }}
+                                disabled={assignLoading}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteAssignment(uEmail, uId);
+                                }}
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </span>
+                        );
+                      })}
                     </div>
                   ) : task.assigned_user_names && task.assigned_user_names.length > 0 ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -547,7 +553,7 @@ export default function TaskDetailModal({
             ) : (
               comments.map((c) => {
                 const canEditMain = currentUser?.id === c.user_id;
-                const canDeleteMain = currentUser?.id === c.user_id || currentUser?.role === 'admin';
+                const canDeleteMain = currentUser?.id === c.user_id || isOverallAdminOrManager || isProjectAdmin;
 
                 return (
                   <div key={c.id} className="glass-panel" style={{ padding: '12px' }}>
@@ -613,7 +619,7 @@ export default function TaskDetailModal({
                       }}>
                         {c.replies.map((reply) => {
                           const canEditReply = currentUser?.id === reply.user_id;
-                          const canDeleteReply = currentUser?.id === reply.user_id || currentUser?.role === 'admin';
+                          const canDeleteReply = currentUser?.id === reply.user_id || isOverallAdminOrManager || isProjectAdmin;
 
                           return (
                             <div key={reply.id} style={{

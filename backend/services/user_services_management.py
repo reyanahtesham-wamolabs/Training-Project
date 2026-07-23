@@ -82,6 +82,7 @@ class UserManagementService:
             )
         except SQLAlchemyError:
             pass
+        
         return result
 
     async def soft_delete_user(self, current_user):

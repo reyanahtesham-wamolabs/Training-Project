@@ -100,21 +100,28 @@ async def delete_assignment(
     session: AsyncSession
 ):
     try:
-        stmt = select(db_Assignment).where(db_Assignment.task_id == task_id)
         if user_id:
-            stmt = stmt.where(db_Assignment.user_id == user_id)
-        elif user_email:
-            from schema.user import User as db_User
-            stmt = stmt.join(db_User, db_Assignment.user_id == db_User.id).where(db_User.email == user_email)
-        else:
-            return False
+            stmt = select(db_Assignment).where(db_Assignment.task_id == task_id, db_Assignment.user_id == user_id)
+            result = await session.execute(stmt)
+            assignment = result.scalar_one_or_none()
+            if assignment:
+                await session.delete(assignment)
+                await session.commit()
+                return True
 
-        result = await session.execute(stmt)
-        assignment = result.scalar_one_or_none()
-        if assignment:
-            await session.delete(assignment)
-            await session.commit()
-            return True
+        if user_email:
+            from schema.user import User as db_User
+            stmt = select(db_Assignment).join(db_User, db_Assignment.user_id == db_User.id).where(
+                db_Assignment.task_id == task_id,
+                db_User.email == user_email
+            )
+            result = await session.execute(stmt)
+            assignment = result.scalar_one_or_none()
+            if assignment:
+                await session.delete(assignment)
+                await session.commit()
+                return True
+
         return False
     except SQLAlchemyError:
         await session.rollback()

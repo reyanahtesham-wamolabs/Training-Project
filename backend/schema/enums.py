@@ -57,3 +57,4 @@ class ActivityActionType(Enum):
     modify_user_status = "modify_user_status"
     change_user_privacy = "change_user_privacy"
     assign_user = "assign_user"
+

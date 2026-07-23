@@ -1,9 +1,3 @@
-"""
-Router layer.
-
-Responsibility: HTTP request/response wiring only.
-No business logic, no error handling - that all lives in TeamService.
-"""
 from fastapi import APIRouter, Depends
 
 from dependencies.services import get_team_service
@@ -32,10 +26,15 @@ async def create_team_route(
 @router_team.post("/add_member", response_model=TeamMemberOut)
 async def add_member_route(
     data: TeamMemberCreate,
-    current_user: db_User = Depends(get_current_manager),
+    current_user: db_User = Depends(get_current_user),
     team_service: TeamService = Depends(get_team_service),
 ):
-    return await team_service.add_member(data.email, data.team_id)
+    return await team_service.add_member(
+        email=data.email,
+        team_id=data.team_id,
+        project_role=data.project_role,
+        current_user=current_user
+    )
 
 @router_team.delete("/remove_member/{member_id}")
 async def remove_member_route(

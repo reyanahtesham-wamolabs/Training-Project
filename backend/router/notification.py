@@ -1,8 +1,3 @@
-"""
-Router layer for Notification endpoints.
-
-Responsibility: HTTP request/response wiring only.
-"""
 from fastapi import APIRouter, Depends
 from dependencies.services import get_notification_service
 from dependencies.authorization import get_current_user

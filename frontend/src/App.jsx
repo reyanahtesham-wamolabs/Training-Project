@@ -117,6 +117,13 @@ export default function App() {
     if (!localStorage.getItem('access_token')) return;
 
     try {
+      const userProfile = await authAPI.me();
+      if (userProfile && userProfile.id) {
+        setCurrentUser(userProfile);
+      }
+    } catch {}
+
+    try {
       const fetchedProjects = await projectAPI.getAll();
       if (Array.isArray(fetchedProjects)) {
         const sanitizedProjects = fetchedProjects.map(p => ({
@@ -826,11 +833,11 @@ export default function App() {
           onOpenNotifications={() => setShowNotifications(true)}
           onOpenActivityLog={() => setShowActivityDrawer(true)}
           onLogout={handleLogout} 
-          onOpenExternalModal={() => setShowCreateExternal(true)}
+          onOpenCreateExternalCollaborator={() => setShowCreateExternalCollaborator(true)}
           onOpenPrivacyModal={() => setShowEditPrivacy(true)}
           onOpenAuth={() => setShowAuthModal(true)}
-          unreadNotificationCount={unreadCount}
-          onToggleNotifications={() => setShowNotifications(prev => !prev)}
+          onOpenProfileSettings={() => setShowProfileSettings(true)}
+          onDeleteProfile={handleDeleteProfile}
         />
 
         <main className="content-body">

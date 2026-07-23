@@ -8,9 +8,38 @@ from schema.user import User as db_User
 from schema.enums import ProjectStatus as Status
 from services.notification_service import NotificationService
 from helper_functions.opt_gen import send_task_due_reminder_email
+import subprocess
+import os
+from dotenv import load_dotenv
+from helper_functions.logger import logging
+load_dotenv()
 
+PGPASSWORD=os.getenv("PGPASSWORD")
+PGUSERNAME=os.getenv("PGUSERNAME")
+PGDB=os.getenv("PGDB")
 scheduler = AsyncIOScheduler()
+logger = logging.getLogger(__name__)
 
+async def backup_db():
+    try:
+            env = os.environ.copy()
+            env["PGPASSWORD"]=PGPASSWORD
+
+            subprocess.run(
+                [
+                    "pg_dump",
+                    "-h", "localhost",
+                    "-U", PGUSERNAME,
+                    "-d", PGDB,
+                    "-F", "c",
+                    "-f", "backup.dump",
+                ],
+                env=env,
+                check=True,
+            )
+
+    except Exception as e:
+        logger.error(f"The daily database backup has failed {e}")
 
 async def check_task_due_dates_and_notify():
     async with AsyncSessionLocal() as session:
@@ -50,7 +79,7 @@ async def check_task_due_dates_and_notify():
                         # 2. Send In-App Notification to assigned user
                         await NotificationService.notify_user(
                             user_id=user.id,
-                            subject="⏰ Task Due Reminder (< 1 Day)",
+                            subject="Task Due Reminder (< 1 Day)",
                             text=f"Your assigned task '{task.name}' has less than 1 day left before its due date ({task.due_date}).",
                             session=session,
                             related_task_id=task.id,
@@ -63,11 +92,18 @@ async def check_task_due_dates_and_notify():
 
             await session.commit()
         except Exception as e:
-            print(f"[Scheduler Error] Failed to check task due dates: {e}")
+            logger.warning(f"[Scheduler Error] Failed to check task due dates: {e}")
 
 
 scheduler.add_job(
     check_task_due_dates_and_notify,
     trigger="interval",
     seconds=360,
+)
+scheduler.add_job(
+    backup_db,
+    trigger="cron",
+    day="*",
+    hour=1,
+    minute=0,
 )

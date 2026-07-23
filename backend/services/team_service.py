@@ -64,7 +64,21 @@ class TeamService:
                 detail="Failed to create team due to a database error",
             ) from e
 
-    async def add_member(self, email: str, team_id: str, project_role: str = "project_member") -> db_team_member:
+    async def add_member(self, email: str, team_id: str, project_role: str = "project_member", current_user=None) -> db_team_member:
+
+        team = await TeamRepo.get_team_by_id(team_id, self.session)
+        if team is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+        if current_user:
+            user_role = str(getattr(current_user.role, 'value', current_user.role)).lower()
+            is_overall_admin_or_manager = user_role in ['admin', 'manager']
+            is_proj_admin = await TeamRepo.is_project_admin(current_user.id, team.project_id, self.session)
+            if not (is_overall_admin_or_manager or is_proj_admin):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only Admins, Managers, or Project Admins can add team members."
+                )
 
         user = await get_user_by_email(email, self.session)
         if user is None:
@@ -72,10 +86,6 @@ class TeamService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with email '{email}' not found",
             )
-
-        team = await TeamRepo.get_team_by_id(team_id, self.session)
-        if team is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
 
         existing = await TeamRepo.get_membership(user.id, team_id, self.session)
         if existing is not None:

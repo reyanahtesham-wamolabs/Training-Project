@@ -44,6 +44,7 @@ class TaskCrud:
             )
             .where(db_task.id == task_id)
         )
+        result=await session.execute(stmt)
         task = result.scalar_one_or_none()
         if task and hasattr(task, 'prerequisites') and task.prerequisites:
             task.prerequisites = [p for p in task.prerequisites if not getattr(p, 'soft_delete', False)]
