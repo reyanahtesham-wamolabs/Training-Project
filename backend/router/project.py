@@ -10,6 +10,7 @@ from dependencies.authorization import (
 )
 from models.project_models import CreateProject, CreateTag, ArchiveProject,AddTagToProject
 from schema.user import User as db_User
+from models.project_models import ProjectUpdate
 
 router_project = APIRouter()
 
@@ -69,7 +70,6 @@ async def hard_delete_project_route(
 ):
     return await project_service.hard_delete_project(current_user, project_id)
 
-from models.project_models import ProjectUpdate
 
 @router_project.patch("/update_project")
 async def update_project_route(

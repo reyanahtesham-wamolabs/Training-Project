@@ -8,6 +8,7 @@ from services.team_service import TeamService
 from services.comment_services import CommentService
 from services.activity_log_services import ActivityLogService
 from services.notification_service import NotificationService
+from services.auth_services import UserAuthenticationServices
 
 def get_user_service(db=Depends(get_db)) -> UserManagementService:
     return UserManagementService(db_session=db)
@@ -29,3 +30,6 @@ def get_activity_log_service(db=Depends(get_db)) -> ActivityLogService:
 
 def get_notification_service(db=Depends(get_db)) -> NotificationService:
     return NotificationService(db_session=db)
+
+def get_auth_service(db=Depends(get_db)) -> UserAuthenticationServices:
+    return UserAuthenticationServices(db_session=db)

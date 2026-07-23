@@ -1,7 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends
 from models.user_model import (
-    User,
     CreateUser,
     UserLogin,
     ChangePassword,
@@ -9,89 +7,78 @@ from models.user_model import (
     ChangeName,
     VerifyOTP,
 )
-
 from models.token_models import RefreshToken
-from repository.user_auth import UserCrud
 from services.auth_services import UserAuthenticationServices
-from dependencies.database import get_db
-from services.JWT_services import TokenFunctionality
+from dependencies.services import get_auth_service
 from schema.user import User as db_User
-from dependencies.authorization import get_current_user, get_current_admin
+from dependencies.authorization import get_current_user
 
 router = APIRouter()
 
 
 @router.post("/signup_user")
-async def signup(user_data: CreateUser, session: AsyncSession = Depends(get_db)):
-    userCompleteData = await UserAuthenticationServices.user_signup(user_data, session)
-    return {"status": "User Created Successfully", "User Data": userCompleteData}
+async def signup(
+    user_data: CreateUser,
+    auth_service: UserAuthenticationServices = Depends(get_auth_service),
+):
+    user_complete_data = await auth_service.user_signup(user_data)
+    return {"status": "User Created Successfully", "User Data": user_complete_data}
 
 
 @router.post("/login")
-async def login(user_data: UserLogin, session: AsyncSession = Depends(get_db)):
-    data = await UserAuthenticationServices.user_login(user_data, session)
-    return data
+async def login(
+    user_data: UserLogin,
+    auth_service: UserAuthenticationServices = Depends(get_auth_service),
+):
+    return await auth_service.user_login(user_data)
 
 
 @router.post("/logout")
 async def logout(
-    session: AsyncSession = Depends(get_db),
     current_user: db_User = Depends(get_current_user),
+    auth_service: UserAuthenticationServices = Depends(get_auth_service),
 ):
-    data = await UserAuthenticationServices.user_logout(session)
-    return data
+    return await auth_service.user_logout(current_user)
 
 
 @router.post("/refresh")
-async def refresh(token: RefreshToken, session: AsyncSession = Depends(get_db)):
-    result = await TokenFunctionality.refresh_token(token.refresh_token, session)
-    if result.get("status") == "login_required":
-        raise HTTPException(status_code=401, detail="Login required")
-    return result
+async def refresh(
+    token: RefreshToken,
+    auth_service: UserAuthenticationServices = Depends(get_auth_service),
+):
+    return await auth_service.refresh_token(token.refresh_token)
 
 
 @router.post("/change_password")
 async def change_password(
     user_data: ChangePassword,
-    session: AsyncSession = Depends(get_db),
     current_user: db_User = Depends(get_current_user),
+    auth_service: UserAuthenticationServices = Depends(get_auth_service),
 ):
-    result = await UserAuthenticationServices.password_change(
-        user_data, current_user, session
-    )
-    return result
+    return await auth_service.password_change(user_data, current_user)
 
 
 @router.post("/change_email")
 async def change_email(
     user_data: ChangeEmail,
-    session: AsyncSession = Depends(get_db),
     current_user: db_User = Depends(get_current_user),
+    auth_service: UserAuthenticationServices = Depends(get_auth_service),
 ):
-    result = await UserAuthenticationServices.email_change(
-        user_data, current_user, session
-    )
-    return result
+    return await auth_service.email_change(user_data, current_user)
 
 
 @router.post("/change_name")
 async def change_name(
     user_data: ChangeName,
-    session: AsyncSession = Depends(get_db),
     current_user: db_User = Depends(get_current_user),
+    auth_service: UserAuthenticationServices = Depends(get_auth_service),
 ):
-    result = await UserAuthenticationServices.name_change(
-        user_data, current_user, session
-    )
-    return result
+    return await auth_service.name_change(user_data, current_user)
 
 
 @router.post("/verify_otp")
 async def verify_otp(
     otp: VerifyOTP,
-    session: AsyncSession = Depends(get_db),
+    auth_service: UserAuthenticationServices = Depends(get_auth_service),
 ):
-    result = await UserAuthenticationServices.check_otp(
-        otp.otp_code, otp.user_email, session
-    )
-    return result
+    return await auth_service.check_otp(otp.otp_code, otp.user_email)

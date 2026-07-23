@@ -9,39 +9,48 @@ from models.user_model import (
 )
 from repository.user_auth import UserCrud
 from .JWT_services import TokenFunctionality
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from helper_functions.hashing import hash_password, check_password
-from fastapi import status
 from helper_functions.opt_gen import generate_OTP, email_OTP
 from schema.otp import OTP as db_otp
-from repository.user_repository import update_user
-from  schema.user import User as db_user
-from schema.enums import OTPAction
-from repository.user_repository import get_user_by_email
-from schema.enums import Roles
-from services.user_services_management import UserManagementService
-from repository.user_repository import get_user_by_email
-import asyncio
+from schema.user import User as db_user
+from schema.enums import OTPAction, Roles
+from repository.user_repository import update_user, get_user_by_email
+
+
 class UserAuthenticationServices:
-    async def user_signup(user_data: CreateUser, session):
-        existing = await get_user_by_email(user_data.email, session)
+    def __init__(self, db_session=None):
+        self.session = db_session
+
+    def _get_session(self, session=None):
+        sess = session or self.session
+        if sess is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database session missing",
+            )
+        return sess
+
+    async def user_signup(self, user_data: CreateUser, session=None):
+        sess = self._get_session(session)
+        existing = await get_user_by_email(user_data.email, sess)
         if existing is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User with this email already exists",
             )
 
-        user_data.password = hash_password(user_data.password)
+        hashed_pw = hash_password(user_data.password)
         user_complete_data = User(
             name=user_data.name,
             role=Roles.member,
-            password=user_data.password,
+            password=hashed_pw,
             email=user_data.email,
             verified=False,
         )
         try:
-            created_user = await UserCrud.add_user(user_complete_data, session)
+            created_user = await UserCrud.add_user(user_complete_data, sess)
         except SQLAlchemyError as e:
             print(f"[Signup DB Error]: {e}")
             raise HTTPException(
@@ -49,10 +58,8 @@ class UserAuthenticationServices:
                 detail="Failed to create user",
             ) from e
 
-
         otp_code = generate_OTP()
-
-        asyncio.create_task(email_OTP(otp_code, user_complete_data.email,"account verification"))
+        asyncio.create_task(email_OTP(otp_code, user_complete_data.email, "account verification"))
 
         otp = db_otp(
             user_id=user_complete_data.id,
@@ -62,7 +69,7 @@ class UserAuthenticationServices:
         )
 
         try:
-            await UserCrud.insert_OTP(otp, session)
+            await UserCrud.insert_OTP(otp, sess)
         except SQLAlchemyError as e:
             print(e)
             raise HTTPException(
@@ -77,24 +84,25 @@ class UserAuthenticationServices:
                 "id": created_user.id,
                 "name": created_user.name,
                 "email": created_user.email,
-                "role": created_user.role,
+                "role": str(created_user.role.value if hasattr(created_user.role, 'value') else created_user.role),
                 "verified": created_user.verified,
             },
         }
 
-    async def user_login(user_data: UserLogin, session):
-        user=await get_user_by_email(user_data.email,session)
+    async def user_login(self, user_data: UserLogin, session=None):
+        sess = self._get_session(session)
+        user = await get_user_by_email(user_data.email, sess)
         if user is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
         if user.soft_delete:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"User is deleted",
+                detail="User is deleted",
             )
         if not user.active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"User has been deactivated",
+                detail="User has been deactivated",
             )
         if not check_password(user_data.password, user.password):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -109,7 +117,7 @@ class UserAuthenticationServices:
                 action=OTPAction.verify_profile,
             )
             try:
-                await UserCrud.insert_OTP(otp, session)
+                await UserCrud.insert_OTP(otp, sess)
             except SQLAlchemyError as e:
                 print(f"[Login Resend OTP DB Error]: {e}")
 
@@ -118,21 +126,22 @@ class UserAuthenticationServices:
                 detail="Verification Needed. A new OTP has been sent to your email.",
             )
 
-        user_obj = await UserCrud.user_login(user_data, session)
-        access_token = TokenFunctionality.create_access_token(user_obj.id)
-        refresh_token = await TokenFunctionality.create_refresh_token(
-            user_obj.id, session
-        )
+        access_token = TokenFunctionality.create_access_token(user.id)
+        refresh_token = await TokenFunctionality.create_refresh_token(user.id, sess)
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
         }
-    async def user_logout(user_data,session):
-        result=await TokenFunctionality.delete_token(user_data.id,session)
+
+    async def user_logout(self, current_user, session=None):
+        sess = self._get_session(session)
+        user_id = getattr(current_user, 'id', current_user)
+        result = await TokenFunctionality.delete_token(user_id, sess)
         return result
-    
-    async def password_change(user_data: ChangePassword, current_user, session):
+
+    async def password_change(self, user_data: ChangePassword, current_user, session=None):
+        sess = self._get_session(session)
         if not check_password(user_data.current_password, current_user.password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -140,9 +149,8 @@ class UserAuthenticationServices:
             )
 
         otp_code = generate_OTP()
-
         try:
-            await email_OTP(otp_code, current_user.email,"password change")
+            await email_OTP(otp_code, current_user.email, "password change")
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -158,7 +166,7 @@ class UserAuthenticationServices:
         )
 
         try:
-            await UserCrud.insert_OTP(otp, session)
+            await UserCrud.insert_OTP(otp, sess)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -167,12 +175,11 @@ class UserAuthenticationServices:
 
         return {"status": "OTP sent, please check your email"}
 
-    async def email_change(user_data: ChangeEmail, current_user, session):
-
+    async def email_change(self, user_data: ChangeEmail, current_user, session=None):
+        sess = self._get_session(session)
         otp_code = generate_OTP()
-
         try:
-            await email_OTP(otp_code, current_user.email,"email change")
+            await email_OTP(otp_code, current_user.email, "email change")
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -188,7 +195,7 @@ class UserAuthenticationServices:
         )
 
         try:
-            await UserCrud.insert_OTP(otp, session)
+            await UserCrud.insert_OTP(otp, sess)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -197,11 +204,11 @@ class UserAuthenticationServices:
 
         return {"status": "OTP sent, please check your email"}
 
-    async def name_change(user_data: ChangeName, current_user, session):
+    async def name_change(self, user_data: ChangeName, current_user, session=None):
+        sess = self._get_session(session)
         otp_code = generate_OTP()
-
         try:
-            await email_OTP(otp_code, current_user.email,"name change")
+            await email_OTP(otp_code, current_user.email, "name change")
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -217,7 +224,7 @@ class UserAuthenticationServices:
         )
 
         try:
-            await UserCrud.insert_OTP(otp, session)
+            await UserCrud.insert_OTP(otp, sess)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -226,9 +233,10 @@ class UserAuthenticationServices:
 
         return {"status": "OTP sent, please check your email"}
 
-    async def check_otp(otp_code: str, email: str, session):
+    async def check_otp(self, otp_code: str, email: str, session=None):
+        sess = self._get_session(session)
         try:
-            user = await get_user_by_email(email, session)
+            user = await get_user_by_email(email, sess)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -242,7 +250,7 @@ class UserAuthenticationServices:
             )
 
         try:
-            result = await UserCrud.check_otp(otp_code, user, session)
+            result = await UserCrud.check_otp(otp_code, user, sess)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -258,9 +266,7 @@ class UserAuthenticationServices:
         if isinstance(result, tuple) and result[0] == "expired":
             expired_otp = result[1]
             new_otp_code = generate_OTP()
-            
-
-            asyncio.create_task(email_OTP(new_otp_code, user.email,"expired otp refresh"))
+            asyncio.create_task(email_OTP(new_otp_code, user.email, "expired otp refresh"))
             
             new_otp = db_otp(
                 user_id=expired_otp.user_id,
@@ -273,7 +279,7 @@ class UserAuthenticationServices:
             )
             
             try:
-                await UserCrud.insert_OTP(new_otp, session)
+                await UserCrud.insert_OTP(new_otp, sess)
             except SQLAlchemyError:
                 pass
                 
@@ -301,7 +307,7 @@ class UserAuthenticationServices:
             )
 
         try:
-            await update_user(user, session)
+            await update_user(user, sess)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -309,3 +315,10 @@ class UserAuthenticationServices:
             ) from e
 
         return {"status": success_message}
+
+    async def refresh_token(self, refresh_token_str: str, session=None):
+        sess = self._get_session(session)
+        result = await TokenFunctionality.refresh_token(refresh_token_str, sess)
+        if result.get("status") == "login_required":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login required")
+        return result

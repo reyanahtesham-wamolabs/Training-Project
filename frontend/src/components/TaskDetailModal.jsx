@@ -459,25 +459,28 @@ export default function TaskDetailModal({
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
             🔗 Prerequisite Tasks (Task Dependencies)
           </span>
-          {task.prerequisites && task.prerequisites.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-              {task.prerequisites.map((pre) => {
-                const isFinished = pre.status === 'finished';
-                return (
-                  <div key={pre.id} className="badge badge-secondary" style={{ padding: '4px 8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <span>{pre.name}</span>
-                    <span className={`badge badge-${isFinished ? 'finished' : 'planned'}`} style={{ fontSize: '0.65rem' }}>
-                      {isFinished ? '✓ Finished' : '⏳ Pending'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '12px', fontStyle: 'italic' }}>
-              No prerequisites set for this task.
-            </p>
-          )}
+          {(() => {
+            const activePrereqs = (task.prerequisites || []).filter(pre => !pre.soft_delete);
+            return activePrereqs.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                {activePrereqs.map((pre) => {
+                  const isFinished = pre.status === 'finished';
+                  return (
+                    <div key={pre.id} className="badge badge-secondary" style={{ padding: '4px 8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span>{pre.name}</span>
+                      <span className={`badge badge-${isFinished ? 'finished' : 'planned'}`} style={{ fontSize: '0.65rem' }}>
+                        {isFinished ? '✓ Finished' : '⏳ Pending'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '12px', fontStyle: 'italic' }}>
+                No prerequisites set for this task.
+              </p>
+            );
+          })()}
 
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <select
@@ -488,7 +491,7 @@ export default function TaskDetailModal({
             >
               <option value="">Select a prerequisite task...</option>
               {allTasks
-                .filter(t => t.id !== task.id && t.project_id === task.project_id)
+                .filter(t => t.id !== task.id && t.project_id === task.project_id && !t.soft_delete)
                 .map(t => (
                   <option key={t.id} value={t.id}>
                     {t.name} ({t.status.replace('_', ' ')})

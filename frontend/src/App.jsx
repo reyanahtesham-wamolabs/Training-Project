@@ -60,6 +60,7 @@ export default function App() {
   const [teamModalTeamId, setTeamModalTeamId] = useState(null);
   const [assignUserProjectId, setAssignUserProjectId] = useState(null);
   const [assignUserProjectMembers, setAssignUserProjectMembers] = useState(null);
+  const [assignUserTaskId, setAssignUserTaskId] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
@@ -678,13 +679,35 @@ export default function App() {
     ])
   );
 
+  const isTaskAssignedToUser = (task, user) => {
+    if (!task || !user) return false;
+    if (Array.isArray(task.assigned_user_ids) && (
+      (user.id && task.assigned_user_ids.includes(user.id)) ||
+      (user.email && task.assigned_user_ids.includes(user.email))
+    )) {
+      return true;
+    }
+    if (Array.isArray(task.assigned_user_emails) && user.email && task.assigned_user_emails.includes(user.email)) {
+      return true;
+    }
+    if (Array.isArray(task.assignments)) {
+      return task.assignments.some(a => {
+        if (!a) return false;
+        const uid = a.user_id || a.user?.id;
+        const uemail = a.user_email || a.user?.email || a.email;
+        return (user.id && uid === user.id) || (user.email && uemail === user.email);
+      });
+    }
+    return false;
+  };
+
   // Set of project IDs assigned to the current user (via team membership or task assignment)
   const userAssignedProjectIds = new Set([
     ...teams
       .filter(t => teamMembers.some(m => (m.user_id === currentUser?.id || m.email === currentUser?.email) && m.team_id === t.id))
       .map(t => t.project_id),
     ...tasks
-      .filter(t => t.assignments && t.assignments.some(a => a.user_id === currentUser?.id || a.user_email === currentUser?.email))
+      .filter(t => isTaskAssignedToUser(t, currentUser))
       .map(t => t.project_id)
   ]);
 
@@ -707,10 +730,7 @@ export default function App() {
     const matchesCategory = categoryFilter === 'all' || (parentProject && parentProject.category === categoryFilter);
     const matchesTag = tagFilter === 'all' || (parentProject && parentProject.tags && parentProject.tags.includes(tagFilter));
     const matchesTaskAssignment = taskAssignmentFilter === 'all' || 
-      (taskAssignmentFilter === 'assigned_to_me' && (
-        (t.assigned_user_ids && t.assigned_user_ids.includes(currentUser?.id)) ||
-        (t.assigned_user_emails && t.assigned_user_emails.includes(currentUser?.email))
-      ));
+      (taskAssignmentFilter === 'assigned_to_me' && isTaskAssignedToUser(t, currentUser));
     const matchesProject = taskProjectFilter === 'all' || t.project_id === taskProjectFilter;
     const isNotSoftDeleted = !t.soft_delete;
 
@@ -795,7 +815,7 @@ export default function App() {
       )}
 
       {/* Sidebar Navigation */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={currentUser?.role === 'admin'} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={currentUser?.role === 'admin'} userRole={currentUser?.role} />
 
       {/* Main Content Area */}
       <div className="main-content">
@@ -808,6 +828,7 @@ export default function App() {
           onLogout={handleLogout} 
           onOpenExternalModal={() => setShowCreateExternal(true)}
           onOpenPrivacyModal={() => setShowEditPrivacy(true)}
+          onOpenAuth={() => setShowAuthModal(true)}
           unreadNotificationCount={unreadCount}
           onToggleNotifications={() => setShowNotifications(prev => !prev)}
         />
@@ -920,9 +941,10 @@ export default function App() {
                   setTaskModalProjectId(projId);
                   setShowCreateTask(true);
                 }}
-                onAssignUserForProject={(projId, members) => {
+                onAssignUserForProject={(projId, members, taskId) => {
                   setAssignUserProjectId(projId);
                   setAssignUserProjectMembers(members);
+                  setAssignUserTaskId(taskId || null);
                   setShowAssignUser(true);
                 }}
                 onAddTeamMemberForTeam={(teamId) => {
@@ -1303,7 +1325,7 @@ export default function App() {
           )}
 
           {/* Recycle Bin / Trash Tab */}
-          {activeTab === 'bin' && (
+          {activeTab === 'bin' && currentUser?.role !== 'member' && (
             <div>
               <div style={{ marginBottom: '24px' }}>
                 <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0 0 6px 0' }}>🗑️ Recycle Bin & Trash</h1>
@@ -1629,6 +1651,7 @@ export default function App() {
       {showAssignUser && (
         <AssignUserModal
           tasks={assignUserProjectId ? tasks.filter(t => t.project_id === assignUserProjectId) : tasks}
+          initialTaskId={assignUserTaskId}
           users={users}
           teamMembers={teamMembers}
           projectTeamMembers={assignUserProjectMembers}
@@ -1637,6 +1660,7 @@ export default function App() {
             setShowAssignUser(false);
             setAssignUserProjectId(null);
             setAssignUserProjectMembers(null);
+            setAssignUserTaskId(null);
           }}
           onAssignUser={handleAssignUser}
         />

@@ -17,13 +17,14 @@ async def check_task_due_dates_and_notify():
         try:
             today = date.today()
             tomorrow = today + timedelta(days=1)
-
+            yesterday=today-timedelta(days=1)
             # Query active, unfinished tasks with due_date within 1 day (today or tomorrow)
             stmt = select(Task).where(
                 Task.soft_delete == False,
                 Task.status != Status.finished,
                 Task.due_date != None,
                 Task.due_date <= tomorrow,
+                Task.due_date> yesterday,
                 Task.due_reminder_sent == False
             )
             result = await session.execute(stmt)
@@ -68,5 +69,5 @@ async def check_task_due_dates_and_notify():
 scheduler.add_job(
     check_task_due_dates_and_notify,
     trigger="interval",
-    seconds=60,
+    seconds=360,
 )

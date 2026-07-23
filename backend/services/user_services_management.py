@@ -35,6 +35,22 @@ class UserManagementService:
     def __init__(self, db_session):
         self.session = db_session
 
+    async def get_user_profile(self, current_user):
+        if not current_user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        role_str = str(current_user.role.value if hasattr(current_user.role, 'value') else current_user.role)
+        privacy_str = str(current_user.privacy_level.value if hasattr(current_user.privacy_level, 'value') else current_user.privacy_level)
+        return {
+            "id": current_user.id,
+            "name": current_user.name,
+            "email": current_user.email,
+            "role": role_str,
+            "privacy_level": privacy_str,
+            "verified": current_user.verified,
+            "active": current_user.active,
+            "is_external": getattr(current_user, 'is_external', False),
+        }
+
     async def modify_status(self, data: ChangeStatus, current_admin):
         user = await get_user_by_email(data.email, self.session)
         if user is None:
@@ -109,7 +125,8 @@ class UserManagementService:
                 detail="External collaborators cannot assign or be assigned to tasks",
             )
 
-        if current_user and current_user.role == Roles.member and assignment_data.user_email != current_user.email:
+        user_role_str = str(getattr(current_user.role, 'value', current_user.role)).lower() if current_user else ''
+        if current_user and user_role_str == 'member' and assignment_data.user_email != current_user.email:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Members are only allowed to assign themselves to tasks",

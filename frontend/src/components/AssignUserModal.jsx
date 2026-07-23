@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 
-export default function AssignUserModal({ tasks, users = [], teamMembers = [], projectTeamMembers = null, currentUser, onClose, onAssignUser }) {
+export default function AssignUserModal({ tasks, initialTaskId, users = [], teamMembers = [], projectTeamMembers = null, currentUser, onClose, onAssignUser }) {
   const isMemberOnly = currentUser?.role === 'member';
   const [userEmail, setUserEmail] = useState(isMemberOnly ? (currentUser?.email || '') : '');
-  const [taskId, setTaskId] = useState(tasks[0]?.id || '');
+  const [taskId, setTaskId] = useState(initialTaskId || tasks[0]?.id || '');
 
   // Merge users array and teamMembers array to ensure all valid users appear
   const userMap = new Map();

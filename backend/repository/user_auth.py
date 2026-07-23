@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from schema.user import User as db_User
 from schema.otp import OTP as db_otp
 from models.user_model import User, UserLogin
-from fastapi import HTTPException
 from schema.enums import Levels
 from helper_functions.hashing import check_password
 from datetime import datetime,timezone
@@ -39,10 +38,7 @@ class UserCrud:
         try:
             stmt = select(db_User).where(db_User.email == data.email)
             result = await session.execute(stmt)
-            usersObj = result.scalar_one_or_none()
-            if not check_password(data.password, usersObj.password):
-                raise HTTPException(status_code=401, detail="Invalid credentials")
-            return usersObj
+            return result.scalar_one_or_none()
         except SQLAlchemyError:
             raise
 

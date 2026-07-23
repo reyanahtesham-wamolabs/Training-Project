@@ -44,16 +44,29 @@ class TaskCrud:
             )
             .where(db_task.id == task_id)
         )
-        result = await session.execute(stmt)
-        return result.scalar_one_or_none()
+        task = result.scalar_one_or_none()
+        if task and hasattr(task, 'prerequisites') and task.prerequisites:
+            task.prerequisites = [p for p in task.prerequisites if not getattr(p, 'soft_delete', False)]
+        return task
 
     @staticmethod
     async def delete_task(task_id: str, session: AsyncSession) -> bool:
+        from schema.task import association_table
+        from sqlalchemy import delete, or_
+
         task = await session.get(db_task, task_id)
         if task is None:
             return False
 
         task.soft_delete = True
+        await session.execute(
+            delete(association_table).where(
+                or_(
+                    association_table.c.prerequisite_task_id == task_id,
+                    association_table.c.dependant_task_id == task_id
+                )
+            )
+        )
         await session.commit()
         return True
 
@@ -143,7 +156,11 @@ class TaskCrud:
         # Admin and Manager see everything
         if current_user.role in [Roles.admin, Roles.manager]:
             result = await session.execute(stmt)
-            return list(result.scalars().all())
+            all_t = list(result.scalars().all())
+            for t in all_t:
+                if hasattr(t, 'prerequisites') and t.prerequisites:
+                    t.prerequisites = [p for p in t.prerequisites if not getattr(p, 'soft_delete', False)]
+            return all_t
 
         # Determine which projects the user is "assigned to"
         # 1. Projects where user is in the team
@@ -188,6 +205,10 @@ class TaskCrud:
                             
                 if not has_high_privacy:
                     visible_tasks.append(task)
+
+        for t in visible_tasks:
+            if hasattr(t, 'prerequisites') and t.prerequisites:
+                t.prerequisites = [p for p in t.prerequisites if not getattr(p, 'soft_delete', False)]
 
         return visible_tasks
 

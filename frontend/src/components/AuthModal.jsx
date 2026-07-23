@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { authAPI } from '../services/api';
 
-export default function AuthModal({ onClose, onLoginSuccess }) {
+export default function AuthModal({ onClose, onLoginSuccess, initialMode = 'signin' }) {
   // 'signin' | 'signup' | 'otp'
-  const [mode, setMode] = useState('signin');
+  const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
