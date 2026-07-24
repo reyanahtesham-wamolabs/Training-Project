@@ -1,27 +1,27 @@
 import React, { useState } from 'react';
 
-export default function AssignUserModal({ tasks, users = [], teamMembers = [], projectTeamMembers = null, currentUser, onClose, onAssignUser }) {
+export default function AssignUserModal({ tasks, initialTaskId, users = [], teamMembers = [], projectTeamMembers = null, currentUser, onClose, onAssignUser }) {
   const isMemberOnly = currentUser?.role === 'member';
   const [userEmail, setUserEmail] = useState(isMemberOnly ? (currentUser?.email || '') : '');
-  const [taskId, setTaskId] = useState(tasks[0]?.id || '');
+  const [taskId, setTaskId] = useState(initialTaskId || tasks[0]?.id || '');
 
   // Merge users array and teamMembers array to ensure all valid users appear
   const userMap = new Map();
 
   if (projectTeamMembers && Array.isArray(projectTeamMembers)) {
     projectTeamMembers.forEach(m => {
-      if (m && m.email) {
+      if (m && m.email && m.active !== false && !m.soft_delete) {
         userMap.set(m.email, { id: m.user_id || m.id, name: m.name || m.email, email: m.email });
       }
     });
   } else {
     users.forEach(u => {
-      if (u && u.email && !u.is_external) {
+      if (u && u.email && !u.is_external && u.active !== false && !u.soft_delete) {
         userMap.set(u.email, { id: u.id, name: u.name || u.email, email: u.email });
       }
     });
     teamMembers.forEach(m => {
-      if (m && m.email && !userMap.has(m.email)) {
+      if (m && m.email && !userMap.has(m.email) && m.active !== false && !m.soft_delete) {
         userMap.set(m.email, { id: m.user_id || m.id, name: m.name || m.email, email: m.email });
       }
     });
@@ -64,7 +64,7 @@ export default function AssignUserModal({ tasks, users = [], teamMembers = [], p
         </div>
 
         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-          {isMemberOnly 
+          {isMemberOnly
             ? 'As a team member, you can assign yourself to available tasks.'
             : 'Assign a team member to a task. Note: External collaborators cannot be assigned tasks.'}
         </p>
@@ -88,10 +88,10 @@ export default function AssignUserModal({ tasks, users = [], teamMembers = [], p
 
           <div className="form-group">
             <label className="form-label">Select User</label>
-            <select 
-              className="form-select" 
-              value={isMemberOnly ? (currentUser?.email || '') : userEmail} 
-              onChange={(e) => setUserEmail(e.target.value)} 
+            <select
+              className="form-select"
+              value={isMemberOnly ? (currentUser?.email || '') : userEmail}
+              onChange={(e) => setUserEmail(e.target.value)}
               disabled={isMemberOnly}
               required
             >

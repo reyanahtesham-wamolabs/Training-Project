@@ -1,12 +1,12 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from repository.user_repository import get_user_by_email
+from repository.user import get_user_by_email
 from repository.team import TeamRepo
 from repository.project import ProjectRepo
-from models.team_models import TeamCreate, MessageCreate
+from models.team import TeamCreate, MessageCreate
 from schema.team import Team as db_team, TeamMember as db_team_member, Message as db_message
-from services.notification_service import NotificationService
+from services.notification import NotificationService
 
 class TeamService:
     def __init__(self, db_session: AsyncSession):
@@ -21,15 +21,18 @@ class TeamService:
         members = await TeamRepo.get_all_members_with_users(self.session)
         result = []
         for m in members:
-            result.append({
-                "id": m.id,
-                "user_id": m.user_id,
-                "team_id": m.team_id,
-                "joined_at": m.joined_at.isoformat(),
-                "name": m.user.name if m.user else None,
-                "email": m.user.email if m.user else None,
-                "project_role": str(m.project_role.value if hasattr(m.project_role, 'value') else m.project_role) if m.project_role else "project_member",
-            })
+            if m.user and getattr(m.user, 'active', True) and not getattr(m.user, 'soft_delete', False):
+                result.append({
+                    "id": m.id,
+                    "user_id": m.user_id,
+                    "team_id": m.team_id,
+                    "joined_at": m.joined_at.isoformat(),
+                    "name": m.user.name,
+                    "email": m.user.email,
+                    "project_role": str(m.project_role.value if hasattr(m.project_role, 'value') else m.project_role) if m.project_role else "project_member",
+                    "active": True,
+                    "soft_delete": False,
+                })
         return result
 
     async def get_user_teams(self, current_user) -> list[db_team]:
@@ -64,7 +67,21 @@ class TeamService:
                 detail="Failed to create team due to a database error",
             ) from e
 
-    async def add_member(self, email: str, team_id: str, project_role: str = "project_member") -> db_team_member:
+    async def add_member(self, email: str, team_id: str, project_role: str = "project_member", current_user=None) -> db_team_member:
+
+        team = await TeamRepo.get_team_by_id(team_id, self.session)
+        if team is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+        if current_user:
+            user_role = str(getattr(current_user.role, 'value', current_user.role)).lower()
+            is_overall_admin_or_manager = user_role in ['admin', 'manager']
+            is_proj_admin = await TeamRepo.is_project_admin(current_user.id, team.project_id, self.session)
+            if not (is_overall_admin_or_manager or is_proj_admin):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only Admins, Managers, or Project Admins can add team members."
+                )
 
         user = await get_user_by_email(email, self.session)
         if user is None:
@@ -72,10 +89,6 @@ class TeamService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with email '{email}' not found",
             )
-
-        team = await TeamRepo.get_team_by_id(team_id, self.session)
-        if team is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
 
         existing = await TeamRepo.get_membership(user.id, team_id, self.session)
         if existing is not None:

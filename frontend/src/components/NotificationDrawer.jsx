@@ -37,8 +37,7 @@ export default function NotificationDrawer({ notifications = [], onClose, onMark
     { id: 'tasks', label: 'Tasks', icon: '📋' },
     { id: 'projects', label: 'Projects', icon: '📁' },
     { id: 'messages', label: 'Chat', icon: '💬' },
-    { id: 'comments', label: 'Comments', icon: '🗣️' },
-    { id: 'system', label: 'System', icon: '⚙️' },
+    { id: 'comments', label: 'Comments', icon: '🗣️' }
   ];
 
   const getCategoryBadge = (cat) => {
@@ -60,7 +59,13 @@ export default function NotificationDrawer({ notifications = [], onClose, onMark
 
   const filteredNotifications = notifications.filter(n => {
     const cat = getCategory(n);
-    if (categoryFilter !== 'all' && cat !== categoryFilter) return false;
+    if (categoryFilter !== 'all') {
+      if (categoryFilter === 'projects') {
+        if (cat !== 'projects' && cat !== 'system') return false;
+      } else {
+        if (cat !== categoryFilter) return false;
+      }
+    }
     if (statusFilter === 'unread' && n.read) return false;
     return true;
   });

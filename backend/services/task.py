@@ -3,10 +3,16 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from repository.task import TaskCrud
 from schema.task import Task as db_task
-from models.task_models import TaskCreation, TaskUpdate
-from services.notification_service import NotificationService
-from services.activity_log_services import ActivityLogService
+from models.task import TaskCreation, TaskUpdate
+from services.notification import NotificationService
+from services.activity_log import ActivityLogService
 from schema.enums import ActivityActionType,Roles,ProjectStatus
+from datetime import date, timedelta
+from helper_functions.email import send_task_due_reminder_email
+from helper_functions.logger import logging
+from repository.team import TeamRepo
+
+logger = logging.getLogger(__name__)
 
 class TaskService:
     def __init__(self, db_session: AsyncSession):
@@ -126,7 +132,6 @@ class TaskService:
                 detail=f"Task with id '{task_id}' not found",
             )
 
-        from repository.team import TeamRepo
         is_project_admin = await TeamRepo.is_project_admin(current_user.id, task.project_id, self.session)
         user_role = str(getattr(current_user.role, 'value', current_user.role)).lower()
         if user_role not in ['admin', 'manager'] and not is_project_admin:
@@ -233,7 +238,6 @@ class TaskService:
                 related_project_id=task.project_id
             )
         except Exception:
-            # Prevent notification failure from blocking core update response
             pass
 
         return task
@@ -291,3 +295,58 @@ class TaskService:
                 )
         except Exception:
             pass
+
+    @classmethod
+    async def process_due_date_reminders(cls, session: AsyncSession):
+        try:
+            today = date.today()
+            tomorrow = today + timedelta(days=1)
+            yesterday = today - timedelta(days=1)
+
+            due_tasks = await TaskCrud.get_tasks_nearing_due_date(tomorrow, yesterday, session)
+
+            for task in due_tasks:
+                assigned_users = await TaskCrud.get_users_assigned_to_task(task.id, session)
+
+                for user in assigned_users:
+                    if user and user.email:
+                        await send_task_due_reminder_email(
+                            email=user.email,
+                            task_name=task.name,
+                            due_date_str=str(task.due_date),
+                            project_name=task.parent_project.name,
+                        )
+
+                        await NotificationService.notify_user(
+                            user_id=user.id,
+                            subject="Task Due Reminder (< 1 Day)",
+                            text=f"Your assigned task '{task.name}' has less than 1 day left before its due date ({task.due_date}).",
+                            session=session,
+                            related_task_id=task.id,
+                            related_project_id=task.project_id,
+                        )
+
+                task.due_reminder_sent = True
+                session.add(task)
+
+            await session.commit()
+        except Exception as e:
+            logger.warning(f"[Scheduler Error] Failed to check task due dates: {e}")
+
+    async def get_softdeleted_tasks(self, current_user=None):
+        try:
+            return await TaskCrud.get_softdeleted_tasks(self.session)
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to fetch soft-deleted tasks due to a database error",
+            ) from e
+
+    async def get_active_tasks(self, current_user=None):
+        try:
+            return await TaskCrud.get_active_tasks(self.session)
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to fetch active tasks due to a database error",
+            ) from e

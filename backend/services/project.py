@@ -6,20 +6,14 @@ from repository.project import ProjectRepo
 from schema.project import Project as db_project, Tag as db_tag
 from schema.user import User as db_user
 from schema.enums import AssignmentRole
-from models.project_models import CreateProject, CreateTag,AddTagToProject
-from repository.user_repository import get_user_assignment
-from services.activity_log_services import ActivityLogService
+from models.project import CreateProject, CreateTag,AddTagToProject
+from repository.user import get_user_assignment
+from services.activity_log import ActivityLogService
 from schema.enums import ActivityActionType
-from services.notification_service import NotificationService
-from models.team_models import TeamCreate
-from services.team_service import TeamService
-from schema.enums import Roles
-from sqlalchemy import select, exists
-from schema.task import Task
-from schema.assignment import Assignment
+from services.notification import NotificationService
+from models.team import TeamCreate
+from services.team import TeamService
 from schema.team import Team as db_Team, TeamMember as db_TeamMember
-from schema.enums import Roles
-from schema.team import TeamMember, Team
 
                 
 class ProjectService:
@@ -134,6 +128,32 @@ class ProjectService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to fetch projects due to a database error",
+            ) from e
+
+    async def get_softdeleted_projects(self, current_user=None):
+        try:
+            projects = await ProjectRepo.get_softdeleted_projects(self.session)
+            if current_user and getattr(current_user, 'is_external', False):
+                allowed_project_ids = await ProjectRepo.get_allowed_project_ids_for_user(current_user.id, self.session)
+                return [p for p in projects if p.id in allowed_project_ids]
+            return projects
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to fetch soft-deleted projects due to a database error",
+            ) from e
+
+    async def get_active_projects(self, current_user=None):
+        try:
+            projects = await ProjectRepo.get_active_projects(self.session)
+            if current_user and getattr(current_user, 'is_external', False):
+                allowed_project_ids = await ProjectRepo.get_allowed_project_ids_for_user(current_user.id, self.session)
+                return [p for p in projects if p.id in allowed_project_ids]
+            return projects
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to fetch active projects due to a database error",
             ) from e
 
 

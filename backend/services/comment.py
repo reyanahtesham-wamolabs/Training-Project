@@ -6,8 +6,8 @@ from repository.comment import CommentCrud
 from repository.task import TaskCrud
 from schema.comment import Comment as db_Comment
 from schema.enums import Roles
-from models.comment_models import CommentCreate, CommentUpdate
-from services.notification_service import NotificationService
+from models.comment import CommentCreate, CommentUpdate
+from services.notification import NotificationService
 
 class CommentService:
     def __init__(self, db_session: AsyncSession):
@@ -128,10 +128,11 @@ class CommentService:
         if task:
             is_padmin = await CommentCrud.is_project_admin(current_user.id, task.project_id, self.session)
 
-        user_role = str(current_user.role)
+        user_role = str(getattr(current_user.role, 'value', current_user.role)).lower()
+        is_overall_admin_or_manager = user_role in ['admin', 'manager']
         can_delete = (
             comment.user_id == current_user.id
-            or user_role == "admin"
+            or is_overall_admin_or_manager
             or is_padmin
         )
 

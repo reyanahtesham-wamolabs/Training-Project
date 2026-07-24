@@ -1,6 +1,7 @@
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from repository.notification_repository import NotificationRepo
+from repository.notification import NotificationRepo
 from schema.assignment import Assignment
 from schema.team import TeamMember
 from schema.user import User as db_user
@@ -8,6 +9,43 @@ from schema.task import Task
 
 
 class NotificationService:
+    def __init__(self, db_session: AsyncSession = None):
+        self.session = db_session
+
+    async def get_my_notifications(self, current_user: db_user):
+        sess = self.session
+        return await NotificationRepo.get_user_notifications(current_user.id, sess)
+
+    async def mark_read(self, notification_id: str, current_user: db_user):
+        sess = self.session
+        notification = await NotificationRepo.get_notification_by_id(notification_id, sess)
+        if notification is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Notification not found",
+            )
+        if notification.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You cannot modify another user's notification",
+            )
+        return await NotificationRepo.mark_as_read(notification, sess)
+
+    async def update_delivery_time(self, notification_id: str, delivered_at, current_user: db_user):
+        sess = self.session
+        notification = await NotificationRepo.get_notification_by_id(notification_id, sess)
+        if notification is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Notification not found",
+            )
+        if notification.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You cannot modify another user's notification",
+            )
+        return await NotificationRepo.update_delivery_time(notification, delivered_at, sess)
+
     @staticmethod
     async def notify_user(
         user_id: str,

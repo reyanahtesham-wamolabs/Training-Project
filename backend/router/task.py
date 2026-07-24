@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends
 
 from dependencies.services import get_task_service
 from dependencies.authorization import get_current_user, get_current_admin, get_current_manager
-from models.task_models import TaskCreation, TaskUpdate
+from models.task import TaskCreation, TaskUpdate
 from schema.user import User as db_User
-from services.task_services import TaskService
+from services.task import TaskService
 
 router_task = APIRouter()
 
@@ -48,6 +48,20 @@ async def view_task_route(
     task_service: TaskService = Depends(get_task_service),
 ):
     return await task_service.get_all_tasks(current_user)
+
+@router_task.get("/get_softdeleted_tasks")
+async def get_softdeleted_tasks_route(
+    current_user: db_User = Depends(get_current_user),
+    task_service: TaskService = Depends(get_task_service),
+):
+    return await task_service.get_softdeleted_tasks(current_user)
+
+@router_task.get("/get_active_tasks")
+async def get_active_tasks_route(
+    current_user: db_User = Depends(get_current_user),
+    task_service: TaskService = Depends(get_task_service),
+):
+    return await task_service.get_active_tasks(current_user)
 
 @router_task.patch("/update_task")
 async def update_task_route(

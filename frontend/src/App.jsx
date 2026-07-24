@@ -31,13 +31,16 @@ import {
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [projects, setProjects] = useState([]);
+  const [deletedProjects, setDeletedProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [deletedTasks, setDeletedTasks] = useState([]);
   const [teams, setTeams] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [commentsMap, setCommentsMap] = useState({});
   const [activityLogs, setActivityLogs] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [users, setUsers] = useState([]);
+  const [deletedUsers, setDeletedUsers] = useState([]);
   const [dbTags, setDbTags] = useState([]);
 
   const defaultUser = {
@@ -60,6 +63,7 @@ export default function App() {
   const [teamModalTeamId, setTeamModalTeamId] = useState(null);
   const [assignUserProjectId, setAssignUserProjectId] = useState(null);
   const [assignUserProjectMembers, setAssignUserProjectMembers] = useState(null);
+  const [assignUserTaskId, setAssignUserTaskId] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showEditProject, setShowEditProject] = useState(false);
@@ -116,7 +120,14 @@ export default function App() {
     if (!localStorage.getItem('access_token')) return;
 
     try {
-      const fetchedProjects = await projectAPI.getAll();
+      const userProfile = await authAPI.me();
+      if (userProfile && userProfile.id) {
+        setCurrentUser(userProfile);
+      }
+    } catch {}
+
+    try {
+      const fetchedProjects = await projectAPI.getActive();
       if (Array.isArray(fetchedProjects)) {
         const sanitizedProjects = fetchedProjects.map(p => ({
           ...p,
@@ -127,8 +138,24 @@ export default function App() {
     } catch {}
 
     try {
-      const fetchedTasks = await taskAPI.getAll();
+      const fetchedDeletedProjects = await projectAPI.getSoftDeleted();
+      if (Array.isArray(fetchedDeletedProjects)) {
+        const sanitized = fetchedDeletedProjects.map(p => ({
+          ...p,
+          tags: p.tags ? p.tags.map(t => typeof t === 'string' ? t : t.name) : []
+        }));
+        setDeletedProjects(sanitized);
+      }
+    } catch {}
+
+    try {
+      const fetchedTasks = await taskAPI.getActive();
       if (Array.isArray(fetchedTasks)) setTasks(fetchedTasks);
+    } catch {}
+
+    try {
+      const fetchedDeletedTasks = await taskAPI.getSoftDeleted();
+      if (Array.isArray(fetchedDeletedTasks)) setDeletedTasks(fetchedDeletedTasks);
     } catch {}
 
     try {
@@ -180,6 +207,11 @@ export default function App() {
       try {
         const fetchedUsers = await userManagementAPI.getAllUsers();
         if (Array.isArray(fetchedUsers)) setUsers(fetchedUsers);
+      } catch {}
+
+      try {
+        const fetchedDelUsers = await userManagementAPI.getSoftDeletedUsers();
+        if (Array.isArray(fetchedDelUsers)) setDeletedUsers(fetchedDelUsers);
       } catch {}
     }
   };
@@ -678,13 +710,35 @@ export default function App() {
     ])
   );
 
+  const isTaskAssignedToUser = (task, user) => {
+    if (!task || !user) return false;
+    if (Array.isArray(task.assigned_user_ids) && (
+      (user.id && task.assigned_user_ids.includes(user.id)) ||
+      (user.email && task.assigned_user_ids.includes(user.email))
+    )) {
+      return true;
+    }
+    if (Array.isArray(task.assigned_user_emails) && user.email && task.assigned_user_emails.includes(user.email)) {
+      return true;
+    }
+    if (Array.isArray(task.assignments)) {
+      return task.assignments.some(a => {
+        if (!a) return false;
+        const uid = a.user_id || a.user?.id;
+        const uemail = a.user_email || a.user?.email || a.email;
+        return (user.id && uid === user.id) || (user.email && uemail === user.email);
+      });
+    }
+    return false;
+  };
+
   // Set of project IDs assigned to the current user (via team membership or task assignment)
   const userAssignedProjectIds = new Set([
     ...teams
       .filter(t => teamMembers.some(m => (m.user_id === currentUser?.id || m.email === currentUser?.email) && m.team_id === t.id))
       .map(t => t.project_id),
     ...tasks
-      .filter(t => t.assignments && t.assignments.some(a => a.user_id === currentUser?.id || a.user_email === currentUser?.email))
+      .filter(t => isTaskAssignedToUser(t, currentUser))
       .map(t => t.project_id)
   ]);
 
@@ -707,10 +761,7 @@ export default function App() {
     const matchesCategory = categoryFilter === 'all' || (parentProject && parentProject.category === categoryFilter);
     const matchesTag = tagFilter === 'all' || (parentProject && parentProject.tags && parentProject.tags.includes(tagFilter));
     const matchesTaskAssignment = taskAssignmentFilter === 'all' || 
-      (taskAssignmentFilter === 'assigned_to_me' && (
-        (t.assigned_user_ids && t.assigned_user_ids.includes(currentUser?.id)) ||
-        (t.assigned_user_emails && t.assigned_user_emails.includes(currentUser?.email))
-      ));
+      (taskAssignmentFilter === 'assigned_to_me' && isTaskAssignedToUser(t, currentUser));
     const matchesProject = taskProjectFilter === 'all' || t.project_id === taskProjectFilter;
     const isNotSoftDeleted = !t.soft_delete;
 
@@ -743,10 +794,7 @@ export default function App() {
   const assignedProjectsCount = projects.length;
 
   // Filter tasks specifically assigned to current user
-  const userAssignedTasks = tasks.filter(t => 
-    (t.assigned_user_ids && t.assigned_user_ids.includes(currentUser?.id)) ||
-    (t.assigned_user_emails && t.assigned_user_emails.includes(currentUser?.email))
-  );
+  const userAssignedTasks = tasks.filter(t => isTaskAssignedToUser(t, currentUser));
 
   const assignedTasksCount = userAssignedTasks.length;
   const delayedTasksCount = userAssignedTasks.filter(t => {
@@ -795,7 +843,7 @@ export default function App() {
       )}
 
       {/* Sidebar Navigation */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={currentUser?.role === 'admin'} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={currentUser?.role === 'admin'} userRole={currentUser?.role} />
 
       {/* Main Content Area */}
       <div className="main-content">
@@ -806,10 +854,11 @@ export default function App() {
           onOpenNotifications={() => setShowNotifications(true)}
           onOpenActivityLog={() => setShowActivityDrawer(true)}
           onLogout={handleLogout} 
-          onOpenExternalModal={() => setShowCreateExternal(true)}
+          onOpenCreateExternalCollaborator={() => setShowCreateExternalCollaborator(true)}
           onOpenPrivacyModal={() => setShowEditPrivacy(true)}
-          unreadNotificationCount={unreadCount}
-          onToggleNotifications={() => setShowNotifications(prev => !prev)}
+          onOpenAuth={() => setShowAuthModal(true)}
+          onOpenProfileSettings={() => setShowProfileSettings(true)}
+          onDeleteProfile={handleDeleteProfile}
         />
 
         <main className="content-body">
@@ -920,9 +969,10 @@ export default function App() {
                   setTaskModalProjectId(projId);
                   setShowCreateTask(true);
                 }}
-                onAssignUserForProject={(projId, members) => {
+                onAssignUserForProject={(projId, members, taskId) => {
                   setAssignUserProjectId(projId);
                   setAssignUserProjectMembers(members);
+                  setAssignUserTaskId(taskId || null);
                   setShowAssignUser(true);
                 }}
                 onAddTeamMemberForTeam={(teamId) => {
@@ -978,20 +1028,6 @@ export default function App() {
                   </select>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Tag:</span>
-                  <select 
-                    className="form-select" 
-                    value={tagFilter} 
-                    onChange={(e) => setTagFilter(e.target.value)} 
-                    style={{ maxWidth: '160px' }}
-                  >
-                    <option value="all">All Tags</option>
-                    {allAvailableTags.map(tag => (
-                      <option key={tag} value={tag}>{tag}</option>
-                    ))}
-                  </select>
-                </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Status:</span>
@@ -1113,13 +1149,8 @@ export default function App() {
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Filter tasks by name, category, or project tags.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  {!currentUser?.is_external && (
-                    <>
-                      {canAssignUser && (
-                        <button className="btn btn-secondary" onClick={() => setShowAssignUser(true)}>👤 Assign User</button>
-                      )}
-                      <button className="btn btn-primary" onClick={() => setShowCreateTask(true)}>+ Create Task</button>
-                    </>
+                  {!currentUser?.is_external && canAssignUser && (
+                    <button className="btn btn-secondary" onClick={() => setShowAssignUser(true)}>👤 Assign User</button>
                   )}
                 </div>
               </div>
@@ -1146,15 +1177,6 @@ export default function App() {
                   </select>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Tag:</span>
-                  <select className="form-select" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} style={{ maxWidth: '160px' }}>
-                    <option value="all">All Tags</option>
-                    {allAvailableTags.map(tag => (
-                      <option key={tag} value={tag}>{tag}</option>
-                    ))}
-                  </select>
-                </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Assignment:</span>
@@ -1303,7 +1325,7 @@ export default function App() {
           )}
 
           {/* Recycle Bin / Trash Tab */}
-          {activeTab === 'bin' && (
+          {activeTab === 'bin' && currentUser?.role !== 'member' && (
             <div>
               <div style={{ marginBottom: '24px' }}>
                 <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0 0 6px 0' }}>🗑️ Recycle Bin & Trash</h1>
@@ -1313,136 +1335,151 @@ export default function App() {
               </div>
 
               {/* Archived Projects */}
-              <div className="glass-panel" style={{ padding: '24px', marginBottom: '28px' }}>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  📁 Archived Projects ({projects.filter(p => p.archived || p.soft_delete).length})
-                </h2>
+              {(() => {
+                const binProjectList = [...deletedProjects, ...projects.filter(p => p.archived)];
+                return (
+                  <div className="glass-panel" style={{ padding: '24px', marginBottom: '28px' }}>
+                    <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      📁 Archived Projects ({binProjectList.length})
+                    </h2>
 
-                {projects.filter(p => p.archived || p.soft_delete).length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
-                    No archived projects in recycle bin.
-                  </div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                    {projects.filter(p => p.archived || p.soft_delete).map(p => (
-                      <div key={p.id} className="glass-panel" style={{ padding: '18px', borderLeft: '3px solid var(--rose)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                          <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>{p.name}</h3>
-                          <span className="badge badge-archived">Archived</span>
-                        </div>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                          Category: {p.category} | Created: {p.start_date || 'N/A'}
-                        </p>
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            style={{ flex: 1 }}
-                            onClick={() => handleArchiveProject(p.id, false)}
-                          >
-                            ♻️ Restore
-                          </button>
-                          <button
-                            className="btn btn-danger btn-sm"
-                            style={{ flex: 1 }}
-                            onClick={() => handleHardDeleteProject(p.id)}
-                          >
-                            🔴 Delete Permanently
-                          </button>
-                        </div>
+                    {binProjectList.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                        No archived projects in recycle bin.
                       </div>
-                    ))}
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                        {binProjectList.map(p => (
+                          <div key={p.id} className="glass-panel" style={{ padding: '18px', borderLeft: '3px solid var(--rose)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                              <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>{p.name}</h3>
+                              <span className="badge badge-archived">Archived</span>
+                            </div>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                              Category: {p.category} | Created: {p.start_date || 'N/A'}
+                            </p>
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ flex: 1 }}
+                                onClick={() => handleArchiveProject(p.id, false)}
+                              >
+                                ♻️ Restore
+                              </button>
+                              <button
+                                className="btn btn-danger btn-sm"
+                                style={{ flex: 1 }}
+                                onClick={() => handleHardDeleteProject(p.id)}
+                              >
+                                🔴 Delete Permanently
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Archived / Soft-Deleted Tasks */}
-              <div className="glass-panel" style={{ padding: '24px', marginBottom: '28px' }}>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  📋 Archived & Deleted Tasks ({tasks.filter(t => t.status === 'archived' || t.soft_delete).length})
-                </h2>
+              {(() => {
+                const binTaskList = [...deletedTasks, ...tasks.filter(t => t.status === 'archived')];
+                return (
+                  <div className="glass-panel" style={{ padding: '24px', marginBottom: '28px' }}>
+                    <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      📋 Archived & Deleted Tasks ({binTaskList.length})
+                    </h2>
 
-                {tasks.filter(t => t.status === 'archived' || t.soft_delete).length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
-                    No archived or deleted tasks in recycle bin.
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {tasks.filter(t => t.status === 'archived' || t.soft_delete).map(t => {
-                      const parentProject = projects.find(p => p.id === t.project_id);
-                      return (
-                        <div key={t.id} className="glass-panel" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{t.name}</span>
-                              <span className={`badge badge-${t.priority?.toLowerCase() || 'medium'}`}>{t.priority}</span>
+                    {binTaskList.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                        No archived or deleted tasks in recycle bin.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {binTaskList.map(t => {
+                          const parentProject = projects.find(p => p.id === t.project_id);
+                          return (
+                            <div key={t.id} className="glass-panel" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{t.name}</span>
+                                  <span className={`badge badge-${t.priority?.toLowerCase() || 'medium'}`}>{t.priority}</span>
+                                </div>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                  Project: {parentProject ? parentProject.name : 'Unassigned'} | Due: {t.due_date || 'N/A'}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => handleRestoreTask(t.id)}
+                                >
+                                  ♻️ Restore
+                                </button>
+                                <button
+                                  className="btn btn-danger btn-sm"
+                                  onClick={() => handleHardDeleteTask(t.id)}
+                                >
+                                  🔴 Delete Permanently
+                                </button>
+                              </div>
                             </div>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                              Project: {parentProject ? parentProject.name : 'Unassigned'} | Due: {t.due_date || 'N/A'}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => handleRestoreTask(t.id)}
-                            >
-                              ♻️ Restore
-                            </button>
-                            <button
-                              className="btn btn-danger btn-sm"
-                              onClick={() => handleHardDeleteTask(t.id)}
-                            >
-                              🔴 Delete Permanently
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Soft-Deleted Profiles */}
-              <div className="glass-panel" style={{ padding: '24px' }}>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  👤 Deleted User Profiles ({users.filter(u => u.soft_delete).length})
-                </h2>
+              {(() => {
+                const binUserList = deletedUsers;
+                return (
+                  <div className="glass-panel" style={{ padding: '24px' }}>
+                    <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      👤 Deleted User Profiles ({binUserList.length})
+                    </h2>
 
-                {users.filter(u => u.soft_delete).length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
-                    No soft-deleted user profiles in recycle bin.
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {users.filter(u => u.soft_delete).map(u => (
-                      <div key={u.id} className="glass-panel" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{u.name}</span>
-                            <span className="badge badge-archived">Soft Deleted</span>
-                          </div>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            Email: {u.email} | Role: {u.role}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => handleModifyUserStatus(u.email, true)}
-                          >
-                            ♻️ Restore
-                          </button>
-                          <button
-                            className="btn btn-danger btn-sm"
-                            onClick={() => handleHardDeleteUser(u.id)}
-                          >
-                            🔴 Delete Permanently
-                          </button>
-                        </div>
+                    {binUserList.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                        No soft-deleted user profiles in recycle bin.
                       </div>
-                    ))}
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {binUserList.map(u => (
+                          <div key={u.id} className="glass-panel" style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{u.name}</span>
+                                <span className="badge badge-archived">Soft Deleted</span>
+                              </div>
+                              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                Email: {u.email} | Role: {u.role}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => handleModifyUserStatus(u.email, true)}
+                              >
+                                ♻️ Restore
+                              </button>
+                              <button
+                                className="btn btn-danger btn-sm"
+                                onClick={() => handleHardDeleteUser(u.id)}
+                              >
+                                🔴 Delete Permanently
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
           )}
 
@@ -1552,95 +1589,104 @@ export default function App() {
         />
       )}
 
-      {showAddTeamMember && (
-        <AddTeamMemberModal
-          teams={teams}
-          users={users}
-          initialTeamId={teamModalTeamId}
-          onClose={() => { setShowAddTeamMember(false); setTeamModalTeamId(null); }}
-          onAddMember={handleAddTeamMember}
-        />
-      )}
+      {(() => {
+        const activeUsers = users.filter(u => u && u.active !== false && !u.soft_delete);
+        return (
+          <>
+            {showAddTeamMember && (
+              <AddTeamMemberModal
+                teams={teams}
+                users={activeUsers}
+                initialTeamId={teamModalTeamId}
+                onClose={() => { setShowAddTeamMember(false); setTeamModalTeamId(null); }}
+                onAddMember={handleAddTeamMember}
+              />
+            )}
 
-      {selectedTask && (
-        <TaskDetailModal
-          task={selectedTask}
-          projects={projects}
-          allTasks={tasks}
-          teams={teams}
-          users={users}
-          teamMembers={teamMembers}
-          comments={commentsMap[selectedTask.id] || []}
-          currentUser={currentUser}
-          onClose={() => setSelectedTask(null)}
-          onAddComment={handleAddComment}
-          onEditComment={handleEditComment}
-          onDeleteComment={handleDeleteComment}
-          onUpdateStatus={handleUpdateTaskStatus}
-          onUpdatePriority={handleUpdateTaskPriority}
-          onUpdateDates={handleUpdateTaskDates}
-          onAddPrerequisite={handleAddPrerequisite}
-          onDeleteTask={handleDeleteTask}
-          onUnassignUser={handleUnassignUser}
-          onAssignUser={handleAssignUser}
-        />
-      )}
+            {selectedTask && (
+              <TaskDetailModal
+                task={selectedTask}
+                projects={projects}
+                allTasks={tasks}
+                teams={teams}
+                users={activeUsers}
+                teamMembers={teamMembers}
+                comments={commentsMap[selectedTask.id] || []}
+                currentUser={currentUser}
+                onClose={() => setSelectedTask(null)}
+                onAddComment={handleAddComment}
+                onEditComment={handleEditComment}
+                onDeleteComment={handleDeleteComment}
+                onUpdateStatus={handleUpdateTaskStatus}
+                onUpdatePriority={handleUpdateTaskPriority}
+                onUpdateDates={handleUpdateTaskDates}
+                onAddPrerequisite={handleAddPrerequisite}
+                onDeleteTask={handleDeleteTask}
+                onUnassignUser={handleUnassignUser}
+                onAssignUser={handleAssignUser}
+              />
+            )}
 
-      {showCreateTag && (
-        <CreateTagModal 
-          onClose={() => setShowCreateTag(false)}
-          onCreateTag={handleCreateTag}
-        />
-      )}
+            {showCreateTag && (
+              <CreateTagModal 
+                onClose={() => setShowCreateTag(false)}
+                onCreateTag={handleCreateTag}
+              />
+            )}
 
-      {showCreateProject && (
-        <CreateProjectModal
-          onClose={() => setShowCreateProject(false)}
-          onCreateProject={handleCreateProject}
-          availableTags={allAvailableTags}
-        />
-      )}
+            {showCreateProject && (
+              <CreateProjectModal
+                onClose={() => setShowCreateProject(false)}
+                onCreateProject={handleCreateProject}
+                availableTags={allAvailableTags}
+              />
+            )}
 
-      {showEditProject && editingProject && (
-        <EditProjectModal
-          project={editingProject}
-          onClose={() => {
-            setEditingProject(null);
-            setShowEditProject(false);
-          }}
-          onEditProject={handleEditProject}
-          availableTags={allAvailableTags}
-          tasks={tasks}
-          users={users}
-          currentUser={currentUser}
-          onAssignUser={handleAssignUser}
-        />
-      )}
+            {showEditProject && editingProject && (
+              <EditProjectModal
+                project={editingProject}
+                onClose={() => {
+                  setEditingProject(null);
+                  setShowEditProject(false);
+                }}
+                onEditProject={handleEditProject}
+                availableTags={allAvailableTags}
+                tasks={tasks}
+                users={activeUsers}
+                currentUser={currentUser}
+                onAssignUser={handleAssignUser}
+              />
+            )}
 
-      {showCreateTask && (
-        <CreateTaskModal
-          projects={projects}
-          initialProjectId={taskModalProjectId}
-          onClose={() => { setShowCreateTask(false); setTaskModalProjectId(null); }}
-          onCreateTask={handleCreateTask}
-        />
-      )}
+            {showCreateTask && (
+              <CreateTaskModal
+                projects={projects}
+                initialProjectId={taskModalProjectId}
+                onClose={() => { setShowCreateTask(false); setTaskModalProjectId(null); }}
+                onCreateTask={handleCreateTask}
+              />
+            )}
 
-      {showAssignUser && (
-        <AssignUserModal
-          tasks={assignUserProjectId ? tasks.filter(t => t.project_id === assignUserProjectId) : tasks}
-          users={users}
-          teamMembers={teamMembers}
-          projectTeamMembers={assignUserProjectMembers}
-          currentUser={currentUser}
-          onClose={() => {
-            setShowAssignUser(false);
-            setAssignUserProjectId(null);
-            setAssignUserProjectMembers(null);
-          }}
-          onAssignUser={handleAssignUser}
-        />
-      )}
+            {showAssignUser && (
+              <AssignUserModal
+                tasks={assignUserProjectId ? tasks.filter(t => t.project_id === assignUserProjectId) : tasks}
+                initialTaskId={assignUserTaskId}
+                users={activeUsers}
+                teamMembers={teamMembers}
+                projectTeamMembers={assignUserProjectMembers}
+                currentUser={currentUser}
+                onClose={() => {
+                  setShowAssignUser(false);
+                  setAssignUserProjectId(null);
+                  setAssignUserProjectMembers(null);
+                  setAssignUserTaskId(null);
+                }}
+                onAssignUser={handleAssignUser}
+              />
+            )}
+          </>
+        );
+      })()}
 
       {showNotifications && (
         <NotificationDrawer

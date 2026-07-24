@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from repository.activity_log_repository import ActivityLogRepo
+from repository.activity_log import ActivityLogRepo
 from schema.activity_log import ActivityLog as db_ActivityLog
 from schema.enums import ActivityActionType
 

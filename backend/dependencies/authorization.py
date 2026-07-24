@@ -2,9 +2,9 @@ from fastapi import Depends, HTTPException, Response, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from  schema.user import User as db_User
-from services.JWT_services import TokenFunctionality
+from services.jwt import TokenFunctionality
 from dependencies.database import get_db
-from repository.user_repository import get_user_by_id
+from repository.user import get_user_by_id
 from schema.enums import Roles
 security = HTTPBearer()
 

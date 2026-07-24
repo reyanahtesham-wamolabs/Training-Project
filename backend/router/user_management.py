@@ -1,37 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
-from dependencies.database import get_db
+from typing import Annotated
+from fastapi import APIRouter, Depends
 from dependencies.services import get_user_service
 from dependencies.authorization import (
     get_current_user,
     get_current_admin,
-    get_current_manager
 )
-from helper_functions.hashing import check_password
 from schema.user import User as db_User
-from services.user_services_management import UserManagementService
-from models.user_model import UserPrivacy, CreateAssignUser,ChangeUserRole
-from models.user_modification import UpdatePersonalInfo, ChangeStatus
-from repository.user_repository import get_all_users
-from typing import Annotated
-
+from services.user_management import UserManagementService
+from models.user import UserPrivacy, CreateAssignUser, ChangeUserRole, CreateExternalCollaborator, UnassignUser
+from models.user_modification import ChangeStatus
 
 router_user_management = APIRouter()
 
 
 @router_user_management.get("/me")
-async def get_me(current_user: db_User = Depends(get_current_user)):
-    """Return the currently authenticated user's profile."""
-    return {
-        "id": current_user.id,
-        "name": current_user.name,
-        "email": current_user.email,
-        "role": str(current_user.role.value if hasattr(current_user.role, 'value') else current_user.role),
-        "privacy_level": str(current_user.privacy_level.value if hasattr(current_user.privacy_level, 'value') else current_user.privacy_level),
-        "verified": current_user.verified,
-        "active": current_user.active,
-    }
+async def get_me(
+    current_user: db_User = Depends(get_current_user),
+    user_service: UserManagementService = Depends(get_user_service),
+):
+    """Return the currently authenticated user's profile via UserManagementService."""
+    return await user_service.get_user_profile(current_user)
 
 
 @router_user_management.patch("/modify_user_status")
@@ -40,8 +28,6 @@ async def modify_status(
     user_service: Annotated[UserManagementService, Depends(get_user_service)],
     current_admin: db_User = Depends(get_current_admin),
 ):
-    "Admin endpoint: update user's role and active status by email."
-    # Delegate admin business logic to service
     user_obj = await user_service.modify_status(data, current_admin)
     return {
         "status": "ok",
@@ -73,7 +59,6 @@ async def change_privacy(
     current_user: db_User = Depends(get_current_user),
 ):
     """Allow a user to change their privacy level."""
-
     user_obj = await user_service.change_privacy(new_level, current_user)
     return {
         "status": "ok",
@@ -86,10 +71,20 @@ async def change_privacy(
 async def assign_user(
     assignment: CreateAssignUser,
     user_service: Annotated[UserManagementService, Depends(get_user_service)],
-    current_user: db_User = Depends(get_current_manager),
+    current_user: db_User = Depends(get_current_user),
 ):
-    assigned_result = await user_service.assign_user(assignment)
+    assigned_result = await user_service.assign_user(assignment, current_user=current_user)
     return assigned_result
+
+
+@router_user_management.post("/unassign_user")
+async def unassign_user(
+    data: UnassignUser,
+    user_service: Annotated[UserManagementService, Depends(get_user_service)],
+    current_user: db_User = Depends(get_current_user),
+):
+    return await user_service.unassign_user(data, current_user=current_user)
+
 
 @router_user_management.post("/change_user_role")
 async def change_user_role(
@@ -104,12 +99,30 @@ async def change_user_role(
 @router_user_management.get("/get_all_users")
 async def get_all_users(
     user_service: Annotated[UserManagementService, Depends(get_user_service)],
-    current_user: db_User = Depends(get_current_admin),
+    current_user: db_User = Depends(get_current_user),
 ):
     """Get All Users"""
     all_users = await user_service.get_all_users()
     return all_users
-from models.user_model import UserPrivacy, CreateAssignUser, ChangeUserRole, CreateExternalCollaborator
+
+
+@router_user_management.get("/get_softdeleted_users")
+async def get_softdeleted_users(
+    user_service: Annotated[UserManagementService, Depends(get_user_service)],
+    current_user: db_User = Depends(get_current_user),
+):
+    """Get Soft-Deleted Users"""
+    return await user_service.get_softdeleted_users()
+
+
+@router_user_management.get("/get_active_users")
+async def get_active_users(
+    user_service: Annotated[UserManagementService, Depends(get_user_service)],
+    current_user: db_User = Depends(get_current_user),
+):
+    """Get Active Users"""
+    return await user_service.get_active_users()
+
 
 @router_user_management.post("/create_external_collaborator")
 async def create_external_collaborator(
@@ -118,6 +131,7 @@ async def create_external_collaborator(
     current_user: db_User = Depends(get_current_user),
 ):
     return await user_service.create_external_collaborator(data, current_user)
+
 
 @router_user_management.delete("/hard_delete_user/{user_id}")
 async def hard_delete_user_route(

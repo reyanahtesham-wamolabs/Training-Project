@@ -118,11 +118,6 @@ export default function CreateExternalCollaboratorModal({ projects = [], onClose
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
               The collaborator account for <strong>{createdResult.email || email}</strong> has been created and assigned to the project.
             </p>
-            {createdResult.temp_password && (
-              <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid var(--emerald)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', marginBottom: '16px' }}>
-                🔑 Temporary Password: <code style={{ color: '#fff', fontWeight: 700 }}>{createdResult.temp_password}</code>
-              </div>
-            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn btn-primary" onClick={handleDone}>Done</button>
             </div>

@@ -107,6 +107,18 @@ class ProjectRepo:
         return result.scalars().all()
 
     @staticmethod
+    async def get_softdeleted_projects(session: AsyncSession):
+        stmt = select(db_project).options(selectinload(db_project.tags)).where(db_project.soft_delete == True)
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_active_projects(session: AsyncSession):
+        stmt = select(db_project).options(selectinload(db_project.tags)).where(db_project.soft_delete == False)
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
     async def get_all_tags(session: AsyncSession):
         stmt = select(db_tag).options(selectinload(db_tag.projects))
         result = await session.execute(stmt)

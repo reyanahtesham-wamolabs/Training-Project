@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import inspect
 from  schema.user import User as db_User
 from  schema.assignment import Assignment as db_Assignment
-from models.user_model import UserResponse
+from models.user import UserResponse
 
 
 async def get_user_by_email(email: str, session: AsyncSession) -> db_User | None:
@@ -36,6 +36,18 @@ async def get_all_users(session: AsyncSession) -> list[db_User]:
     result = await session.execute(stmt)
     user_objs = result.scalars().all()
     return user_objs
+
+
+async def get_softdeleted_users(session: AsyncSession) -> list[db_User]:
+    stmt = select(db_User).where(db_User.soft_delete == True)
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
+async def get_active_users(session: AsyncSession) -> list[db_User]:
+    stmt = select(db_User).where(db_User.soft_delete == False, db_User.active == True)
+    result = await session.execute(stmt)
+    return result.scalars().all()
 
 
 async def save_user(user_obj: db_User, session: AsyncSession) -> db_User:
@@ -100,21 +112,28 @@ async def delete_assignment(
     session: AsyncSession
 ):
     try:
-        stmt = select(db_Assignment).where(db_Assignment.task_id == task_id)
         if user_id:
-            stmt = stmt.where(db_Assignment.user_id == user_id)
-        elif user_email:
-            from schema.user import User as db_User
-            stmt = stmt.join(db_User, db_Assignment.user_id == db_User.id).where(db_User.email == user_email)
-        else:
-            return False
+            stmt = select(db_Assignment).where(db_Assignment.task_id == task_id, db_Assignment.user_id == user_id)
+            result = await session.execute(stmt)
+            assignment = result.scalar_one_or_none()
+            if assignment:
+                await session.delete(assignment)
+                await session.commit()
+                return True
 
-        result = await session.execute(stmt)
-        assignment = result.scalar_one_or_none()
-        if assignment:
-            await session.delete(assignment)
-            await session.commit()
-            return True
+        if user_email:
+            from schema.user import User as db_User
+            stmt = select(db_Assignment).join(db_User, db_Assignment.user_id == db_User.id).where(
+                db_Assignment.task_id == task_id,
+                db_User.email == user_email
+            )
+            result = await session.execute(stmt)
+            assignment = result.scalar_one_or_none()
+            if assignment:
+                await session.delete(assignment)
+                await session.commit()
+                return True
+
         return False
     except SQLAlchemyError:
         await session.rollback()

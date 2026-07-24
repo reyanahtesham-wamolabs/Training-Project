@@ -4,7 +4,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from schema.team import Team as db_team, TeamMember as db_team_member, Message as db_message
-from models.team_models import TeamCreate
+from models.team import TeamCreate
 
 
 class TeamRepo:
@@ -76,7 +76,13 @@ class TeamRepo:
 
     @staticmethod
     async def get_members_for_team(team_id: str, session: AsyncSession):
-        stmt = select(db_team_member).where(db_team_member.team_id == team_id).options(joinedload(db_team_member.user))
+        from schema.user import User as db_User
+        stmt = (
+            select(db_team_member)
+            .join(db_User, db_team_member.user_id == db_User.id)
+            .where(db_team_member.team_id == team_id, db_User.active == True, db_User.soft_delete == False)
+            .options(joinedload(db_team_member.user))
+        )
         result = await session.execute(stmt)
         return result.scalars().all()
 

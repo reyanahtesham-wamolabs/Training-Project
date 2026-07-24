@@ -29,7 +29,7 @@ export default function ProjectDetailView({
 
   // Find Team corresponding to this project
   const projectTeam = teams.find(t => t.project_id === project.id) || { id: project.id, name: `${project.name} Team` };
-  const membersOfThisProject = teamMembers.filter(m => m.team_id === projectTeam.id);
+  const membersOfThisProject = teamMembers.filter(m => m.team_id === projectTeam.id && m.active !== false && !m.soft_delete);
 
   const isOverallAdminOrManager = ['admin', 'manager'].includes(currentUser?.role?.toLowerCase());
   const isProjectAdmin = membersOfThisProject.some(m => 
@@ -125,6 +125,28 @@ export default function ProjectDetailView({
     return m ? { name: m.name || m.email, email: m.email } : { name: 'Team Member', email: '' };
   };
 
+  const isTaskAssignedToUser = (task, user) => {
+    if (!task || !user) return false;
+    if (Array.isArray(task.assigned_user_ids) && (
+      (user.id && task.assigned_user_ids.includes(user.id)) ||
+      (user.email && task.assigned_user_ids.includes(user.email))
+    )) {
+      return true;
+    }
+    if (Array.isArray(task.assigned_user_emails) && user.email && task.assigned_user_emails.includes(user.email)) {
+      return true;
+    }
+    if (Array.isArray(task.assignments)) {
+      return task.assignments.some(a => {
+        if (!a) return false;
+        const uid = a.user_id || a.user?.id;
+        const uemail = a.user_email || a.user?.email || a.email;
+        return (user.id && uid === user.id) || (user.email && uemail === user.email);
+      });
+    }
+    return false;
+  };
+
   // Filter Tasks for this Project
   const projectTasks = tasks.filter(t => t.project_id === project.id && !t.soft_delete);
   const filteredProjectTasks = projectTasks.filter(t => {
@@ -132,10 +154,7 @@ export default function ProjectDetailView({
     const matchesStatus = taskStatusFilter === 'all' || t.status === taskStatusFilter;
     const matchesPriority = taskPriorityFilter === 'all' || t.priority?.toLowerCase() === taskPriorityFilter.toLowerCase();
     const matchesAssignment = taskAssignmentFilter === 'all' || 
-      (taskAssignmentFilter === 'assigned_to_me' && (
-        (t.assigned_user_ids && t.assigned_user_ids.includes(currentUser?.id)) ||
-        (t.assigned_user_emails && t.assigned_user_emails.includes(currentUser?.email))
-      ));
+      (taskAssignmentFilter === 'assigned_to_me' && isTaskAssignedToUser(t, currentUser));
     return matchesSearch && matchesStatus && matchesPriority && matchesAssignment;
   }).sort((a, b) => {
     if (taskDateSort === 'schedule_asc') {
@@ -362,11 +381,24 @@ export default function ProjectDetailView({
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       💬 {(commentsMap[t.id] || []).length} comments
                     </span>
                     <span className={`badge badge-${t.status}`}>{t.status?.replace('_', ' ')}</span>
+                    {!currentUser?.is_external && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '5px 12px', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAssignUserForProject(project.id, membersOfThisProject, t.id);
+                        }}
+                        title="Assign User to this Task"
+                      >
+                        👤 Assign User
+                      </button>
+                    )}
                   </div>
                 </div>
               ))

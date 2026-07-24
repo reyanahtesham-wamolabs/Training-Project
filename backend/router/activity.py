@@ -4,7 +4,7 @@ from typing import List
 from dependencies.services import get_activity_log_service
 from dependencies.authorization import get_current_user, get_current_admin
 from schema.user import User as db_User
-from services.activity_log_services import ActivityLogService
+from services.activity_log import ActivityLogService
 
 router_activity = APIRouter()
 

@@ -1,20 +1,20 @@
-import React, { useState } from 'react';
-import { userManagementAPI } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { userManagementAPI, taskReminderAPI } from '../services/api';
 
-export default function TaskDetailModal({ 
-  task, 
-  projects = [], 
+export default function TaskDetailModal({
+  task,
+  projects = [],
   allTasks = [],
   teams = [],
   users = [],
   teamMembers = [],
-  comments, 
+  comments,
   currentUser,
-  onClose, 
-  onAddComment, 
+  onClose,
+  onAddComment,
   onEditComment,
   onDeleteComment,
-  onUpdateStatus, 
+  onUpdateStatus,
   onUpdatePriority,
   onUpdateDates,
   onAddPrerequisite,
@@ -37,8 +37,59 @@ export default function TaskDetailModal({
   const [isAssigningUser, setIsAssigningUser] = useState(false);
   const [selectedAssignUserEmail, setSelectedAssignUserEmail] = useState('');
 
+  // Reminder state
+  const [reminder, setReminder] = useState(null);
+  const [isEditingReminder, setIsEditingReminder] = useState(false);
+  const [reminderInterval, setReminderInterval] = useState(1);
+  const [reminderUnit, setReminderUnit] = useState('week');
+  const [reminderLoading, setReminderLoading] = useState(false);
+
+  useEffect(() => {
+    if (task && task.id) {
+      taskReminderAPI.get(task.id)
+        .then(data => {
+          setReminder(data);
+          if (data) {
+            setReminderInterval(data.interval_value);
+            setReminderUnit(data.interval_unit);
+          }
+        })
+        .catch(() => setReminder(null));
+    }
+  }, [task]);
+
+  const handleSaveReminder = async () => {
+    setReminderLoading(true);
+    try {
+      const saved = await taskReminderAPI.createOrUpdate(task.id, {
+        interval_value: parseInt(reminderInterval),
+        interval_unit: reminderUnit
+      });
+      setReminder(saved);
+      setIsEditingReminder(false);
+    } catch (err) {
+      alert("Failed to save reminder: " + err.message);
+    } finally {
+      setReminderLoading(false);
+    }
+  };
+
+  const handleDeleteReminder = async () => {
+    if (!window.confirm("Delete this recurring reminder?")) return;
+    setReminderLoading(true);
+    try {
+      await taskReminderAPI.delete(task.id);
+      setReminder(null);
+      setIsEditingReminder(false);
+    } catch (err) {
+      alert("Failed to delete reminder: " + err.message);
+    } finally {
+      setReminderLoading(false);
+    }
+  };
+
   const isOverallAdminOrManager = ['admin', 'manager'].includes(currentUser?.role?.toLowerCase());
-  const isProjectAdmin = teamMembers.some(m => 
+  const isProjectAdmin = teamMembers.some(m =>
     (m.user_id === currentUser?.id || m.email === currentUser?.email) &&
     m.project_role === 'project_admin'
   );
@@ -47,13 +98,13 @@ export default function TaskDetailModal({
 
   // Filter ONLY project team members for this task
   const projectTeam = teams.find(t => t.project_id === task?.project_id || t.id === task?.project_id);
-  const projectTeamMembers = teamMembers.filter(m => 
+  const projectTeamMembers = teamMembers.filter(m =>
     (projectTeam && m.team_id === projectTeam.id) || m.team_id === task?.project_id
   );
 
   const assignableUsersMap = new Map();
   projectTeamMembers.forEach(m => {
-    if (m && m.email) {
+    if (m && m.email && m.active !== false && !m.soft_delete) {
       assignableUsersMap.set(m.email, { id: m.user_id || m.id, name: m.name || m.email, email: m.email });
     }
   });
@@ -61,7 +112,7 @@ export default function TaskDetailModal({
   const currentlyAssignedEmails = task?.assigned_user_emails || (task?.assignments ? task.assignments.map(a => a.user_email) : []);
   const currentlyAssignedIds = task?.assigned_user_ids || (task?.assignments ? task.assignments.map(a => a.user_id) : []);
 
-  const unassignedProjectTeamMembers = Array.from(assignableUsersMap.values()).filter(u => 
+  const unassignedProjectTeamMembers = Array.from(assignableUsersMap.values()).filter(u =>
     !currentlyAssignedEmails.includes(u.email) && !currentlyAssignedIds.includes(u.id)
   );
 
@@ -190,11 +241,11 @@ export default function TaskDetailModal({
 
         {/* Task Details Metadata & Dates */}
         {(() => {
-          const isAssigned = 
+          const isAssigned =
             currentUser?.role === 'admin' ||
             currentUser?.role === 'manager' ||
-            (task.assigned_user_ids && task.assigned_user_ids.includes(currentUser?.id)) ||
-            (task.assigned_user_emails && task.assigned_user_emails.includes(currentUser?.email));
+            currentlyAssignedIds.includes(currentUser?.id) ||
+            currentlyAssignedEmails.includes(currentUser?.email);
           const canEditTask = !currentUser?.is_external && isAssigned;
 
           return (
@@ -205,8 +256,8 @@ export default function TaskDetailModal({
                     📅 Task Timeline & Project
                   </span>
                   {!isEditingDates && canEditTask && (
-                    <button 
-                      className="btn btn-secondary btn-sm" 
+                    <button
+                      className="btn btn-secondary btn-sm"
                       onClick={handleOpenEditDates}
                       style={{ fontSize: '0.78rem', padding: '4px 10px' }}
                     >
@@ -278,7 +329,7 @@ export default function TaskDetailModal({
                       👥 Assigned Team Members:
                     </span>
                     {canDeleteAssignment && !isAssigningUser && (
-                      <button 
+                      <button
                         className="btn btn-secondary btn-sm"
                         style={{ fontSize: '0.75rem', padding: '3px 8px' }}
                         onClick={() => {
@@ -331,33 +382,44 @@ export default function TaskDetailModal({
                   )}
                   {task.assignments && task.assignments.length > 0 ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {task.assignments.map((ass) => (
-                        <span key={ass.id || ass.user_id} className="badge badge-admin" style={{ fontSize: '0.8rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          👤 {ass.user_name}
-                          {canDeleteAssignment && (
-                            <button
-                              title="Delete assignment"
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#ef4444',
-                                cursor: 'pointer',
-                                padding: '0 2px',
-                                fontSize: '0.85rem',
-                                lineHeight: 1,
-                                fontWeight: 'bold'
-                              }}
-                              disabled={assignLoading}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteAssignment(ass.user_email, ass.user_id);
-                              }}
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </span>
-                      ))}
+                      {task.assignments
+                        .filter(ass => {
+                          const u = ass.user || users.find(x => x.id === ass.user_id || x.email === ass.user_email);
+                          return !u || (u.active !== false && !u.soft_delete);
+                        })
+                        .map((ass) => {
+                          const uId = ass.user_id || ass.user?.id || ass.id;
+                          const uEmail = ass.user_email || ass.user?.email || ass.email;
+                          const uName = ass.user_name || ass.user?.name || ass.name || uEmail || 'Assigned Member';
+
+                          return (
+                            <span key={ass.id || uId} className="badge badge-admin" style={{ fontSize: '0.8rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              👤 {uName}
+                              {canDeleteAssignment && (
+                                <button
+                                  title="Delete assignment"
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#ef4444',
+                                    cursor: 'pointer',
+                                    padding: '0 2px',
+                                    fontSize: '0.85rem',
+                                    lineHeight: 1,
+                                    fontWeight: 'bold'
+                                  }}
+                                  disabled={assignLoading}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteAssignment(uEmail, uId);
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </span>
+                          );
+                        })}
                     </div>
                   ) : task.assigned_user_names && task.assigned_user_names.length > 0 ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -397,6 +459,82 @@ export default function TaskDetailModal({
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                       No members assigned yet
                     </span>
+                  )}
+                </div>
+
+                {/* Recurring Reminder Section */}
+                <div style={{ marginTop: '14px', borderTop: '1px solid var(--border-light)', paddingTop: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      ⏰ Recurring Reminder:
+                    </span>
+                    {canEditTask && !isEditingReminder && !reminder && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                        onClick={() => setIsEditingReminder(true)}
+                      >
+                        + Add Reminder
+                      </button>
+                    )}
+                  </div>
+
+                  {reminder && !isEditingReminder && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)' }}>
+                      <span style={{ fontSize: '0.85rem' }}>
+                        Every {reminder.interval_value} {reminder.interval_unit}{reminder.interval_value > 1 ? 's' : ''}
+                      </span>
+                      {canEditTask && (
+                        <>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '2px 6px', fontSize: '0.7rem', marginLeft: 'auto' }}
+                            onClick={() => {
+                              setReminderInterval(reminder.interval_value);
+                              setReminderUnit(reminder.interval_unit);
+                              setIsEditingReminder(true);
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button className="btn btn-danger btn-sm" style={{ padding: '2px 6px', fontSize: '0.7rem' }} onClick={handleDeleteReminder} disabled={reminderLoading}>Delete</button>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {isEditingReminder && (
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', marginBottom: '12px' }}>
+                      <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                        Repeat Every:
+                      </label>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          min="1"
+                          className="form-input"
+                          style={{ width: '80px', fontSize: '0.85rem' }}
+                          value={reminderInterval}
+                          onChange={e => setReminderInterval(e.target.value)}
+                        />
+                        <select
+                          className="form-select"
+                          style={{ width: '120px', fontSize: '0.85rem' }}
+                          value={reminderUnit}
+                          onChange={e => setReminderUnit(e.target.value)}
+                        >
+                          <option value="day">Days</option>
+                          <option value="week">Weeks</option>
+                          <option value="month">Months</option>
+                          <option value="year">Years</option>
+                        </select>
+                        <button className="btn btn-primary btn-sm" onClick={handleSaveReminder} disabled={reminderLoading}>Save</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => setIsEditingReminder(false)}>Cancel</button>
+                      </div>
+                      <small style={{ display: 'block', marginTop: '6px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        Stops automatically when task is finished or due date passes.
+                      </small>
+                    </div>
                   )}
                 </div>
               </div>
@@ -439,7 +577,7 @@ export default function TaskDetailModal({
                 <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>🔒 Task editing is restricted to assigned users.</span>
                   {!currentUser?.is_external && (
-                    <button 
+                    <button
                       className="btn btn-primary btn-sm"
                       onClick={handleSelfAssign}
                       disabled={assignLoading}
@@ -459,25 +597,28 @@ export default function TaskDetailModal({
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
             🔗 Prerequisite Tasks (Task Dependencies)
           </span>
-          {task.prerequisites && task.prerequisites.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-              {task.prerequisites.map((pre) => {
-                const isFinished = pre.status === 'finished';
-                return (
-                  <div key={pre.id} className="badge badge-secondary" style={{ padding: '4px 8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <span>{pre.name}</span>
-                    <span className={`badge badge-${isFinished ? 'finished' : 'planned'}`} style={{ fontSize: '0.65rem' }}>
-                      {isFinished ? '✓ Finished' : '⏳ Pending'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '12px', fontStyle: 'italic' }}>
-              No prerequisites set for this task.
-            </p>
-          )}
+          {(() => {
+            const activePrereqs = (task.prerequisites || []).filter(pre => !pre.soft_delete);
+            return activePrereqs.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                {activePrereqs.map((pre) => {
+                  const isFinished = pre.status === 'finished';
+                  return (
+                    <div key={pre.id} className="badge badge-secondary" style={{ padding: '4px 8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span>{pre.name}</span>
+                      <span className={`badge badge-${isFinished ? 'finished' : 'planned'}`} style={{ fontSize: '0.65rem' }}>
+                        {isFinished ? '✓ Finished' : '⏳ Pending'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '12px', fontStyle: 'italic' }}>
+                No prerequisites set for this task.
+              </p>
+            );
+          })()}
 
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <select
@@ -488,7 +629,7 @@ export default function TaskDetailModal({
             >
               <option value="">Select a prerequisite task...</option>
               {allTasks
-                .filter(t => t.id !== task.id && t.project_id === task.project_id)
+                .filter(t => t.id !== task.id && t.project_id === task.project_id && !t.soft_delete)
                 .map(t => (
                   <option key={t.id} value={t.id}>
                     {t.name} ({t.status.replace('_', ' ')})
@@ -544,7 +685,7 @@ export default function TaskDetailModal({
             ) : (
               comments.map((c) => {
                 const canEditMain = currentUser?.id === c.user_id;
-                const canDeleteMain = currentUser?.id === c.user_id || currentUser?.role === 'admin';
+                const canDeleteMain = currentUser?.id === c.user_id || isOverallAdminOrManager || isProjectAdmin;
 
                 return (
                   <div key={c.id} className="glass-panel" style={{ padding: '12px' }}>
@@ -610,7 +751,7 @@ export default function TaskDetailModal({
                       }}>
                         {c.replies.map((reply) => {
                           const canEditReply = currentUser?.id === reply.user_id;
-                          const canDeleteReply = currentUser?.id === reply.user_id || currentUser?.role === 'admin';
+                          const canDeleteReply = currentUser?.id === reply.user_id || isOverallAdminOrManager || isProjectAdmin;
 
                           return (
                             <div key={reply.id} style={{

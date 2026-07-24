@@ -8,3 +8,4 @@ from .team import Team,TeamMember,Message
 from .notification import Notification
 from .comment import Comment
 from .activity_log import ActivityLog
+from .task_reminder import TaskReminder

@@ -35,7 +35,7 @@ export default function AddTeamMemberModal({ teams, users = [], initialTeamId, o
             <label className="form-label">Select User</label>
             <select className="form-select" value={email} onChange={(e) => setEmail(e.target.value)} required>
               <option value="" disabled>Select a User</option>
-              {users.map((u) => (
+              {users.filter(u => u && u.active !== false && !u.soft_delete).map((u) => (
                 <option key={u.id} value={u.email}>{u.name} ({u.email})</option>
               ))}
             </select>

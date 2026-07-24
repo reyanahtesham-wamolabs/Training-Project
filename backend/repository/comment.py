@@ -7,7 +7,7 @@ from schema.team import Team as db_Team, TeamMember as db_TeamMember
 from schema.comment import Comment as db_Comment
 from schema.assignment import Assignment as db_Assignment
 from schema.enums import AssignmentRole
-from models.comment_models import CommentCreate, CommentUpdate
+from models.comment import CommentCreate, CommentUpdate
 import uuid
 
 class CommentCrud:

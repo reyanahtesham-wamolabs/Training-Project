@@ -3,7 +3,7 @@ import jwt
 import os
 from dotenv import load_dotenv
 from repository.token import tokenCRUD
-from repository.user_repository import get_user_by_id
+from repository.user import get_user_by_id
 load_dotenv()
 
 ALGORITHM=os.getenv("ALGORITHM")

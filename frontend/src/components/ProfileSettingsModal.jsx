@@ -94,7 +94,7 @@ export default function ProfileSettingsModal({ onClose, currentUser, loadBackend
                 onClick={() => setActiveTab('security')}
                 style={{ flex: 1 }}
               >
-                Security
+                Change Password
               </button>
             </div>
 
