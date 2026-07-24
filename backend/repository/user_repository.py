@@ -67,7 +67,6 @@ async def assign_user(
     assignment_id: str,
     user_id: str,
     task_id: str,
-    role: str,
     session: AsyncSession,
 ):
     try:
@@ -75,7 +74,6 @@ async def assign_user(
             id=assignment_id,
             user_id=user_id,
             task_id=task_id,
-            role=role,
         )
         session.add(assignment)
         await session.commit()
@@ -93,3 +91,41 @@ async def get_user_assignment(user_id: str, task_id: str, session: AsyncSession)
     )
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def delete_assignment(
+    task_id: str,
+    user_id: str | None,
+    user_email: str | None,
+    session: AsyncSession
+):
+    try:
+        stmt = select(db_Assignment).where(db_Assignment.task_id == task_id)
+        if user_id:
+            stmt = stmt.where(db_Assignment.user_id == user_id)
+        elif user_email:
+            from schema.user import User as db_User
+            stmt = stmt.join(db_User, db_Assignment.user_id == db_User.id).where(db_User.email == user_email)
+        else:
+            return False
+
+        result = await session.execute(stmt)
+        assignment = result.scalar_one_or_none()
+        if assignment:
+            await session.delete(assignment)
+            await session.commit()
+            return True
+        return False
+    except SQLAlchemyError:
+        await session.rollback()
+        raise
+
+
+async def hard_delete_user(user_id: str, session: AsyncSession) -> bool:
+    user_obj = await session.get(db_User, user_id)
+    if user_obj is None:
+        return False
+    await session.delete(user_obj)
+    await session.commit()
+    return True
+

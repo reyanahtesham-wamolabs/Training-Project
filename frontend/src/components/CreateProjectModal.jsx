@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 
-const AVAILABLE_TAGS = ['AI/ML', 'Frontend', 'Backend', 'Database', 'DevOps', 'Mobile', 'Security'];
-
-export default function CreateProjectModal({ onClose, onCreateProject }) {
+export default function CreateProjectModal({ onClose, onCreateProject, availableTags = [] }) {
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]);
@@ -99,7 +97,7 @@ export default function CreateProjectModal({ onClose, onCreateProject }) {
           <div className="form-group">
             <label className="form-label">Project Tags</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
-              {AVAILABLE_TAGS.map((tag) => {
+              {availableTags.map((tag) => {
                 const isSelected = selectedTags.includes(tag);
                 return (
                   <button

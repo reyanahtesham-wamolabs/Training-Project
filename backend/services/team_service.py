@@ -1,17 +1,12 @@
-"""
-Service layer.
-
-Responsibility: business rules (membership checks, etc.) + translating
-failures into HTTPExceptions. Router calls this layer only.
-"""
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from repository.user_repository import get_user_by_email
 from repository.team import TeamRepo
 from repository.project import ProjectRepo
 from models.team_models import TeamCreate, MessageCreate
 from schema.team import Team as db_team, TeamMember as db_team_member, Message as db_message
+from services.notification_service import NotificationService
 
 class TeamService:
     def __init__(self, db_session: AsyncSession):
@@ -33,6 +28,7 @@ class TeamService:
                 "joined_at": m.joined_at.isoformat(),
                 "name": m.user.name if m.user else None,
                 "email": m.user.email if m.user else None,
+                "project_role": str(m.project_role.value if hasattr(m.project_role, 'value') else m.project_role) if m.project_role else "project_member",
             })
         return result
 
@@ -68,8 +64,7 @@ class TeamService:
                 detail="Failed to create team due to a database error",
             ) from e
 
-    async def add_member(self, email: str, team_id: str) -> db_team_member:
-        from repository.user_repository import get_user_by_email
+    async def add_member(self, email: str, team_id: str, project_role: str = "project_member") -> db_team_member:
 
         user = await get_user_by_email(email, self.session)
         if user is None:
@@ -90,8 +85,7 @@ class TeamService:
             )
 
         try:
-            member = await TeamRepo.add_member(user.id, team_id, self.session)
-            from services.notification_service import NotificationService
+            member = await TeamRepo.add_member(user.id, team_id, project_role, self.session)
             await NotificationService.notify_user(
                 user_id=user.id,
                 subject="Added to Team",
@@ -115,16 +109,9 @@ class TeamService:
         if member is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team member not found")
 
-        if member.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You cannot remove another user from the team",
-            )
-
         try:
             removed_user_id = member.user_id
             await TeamRepo.remove_member(member_id, self.session)
-            from services.notification_service import NotificationService
             await NotificationService.notify_user(
                 user_id=removed_user_id,
                 subject="Removed from Team",
@@ -163,7 +150,6 @@ class TeamService:
 
         try:
             message = await TeamRepo.create_message(membership.id, data.team_id, data.content, self.session)
-            from services.notification_service import NotificationService
             await NotificationService.notify_team_members(
                 team_id=data.team_id,
                 subject="New Message",

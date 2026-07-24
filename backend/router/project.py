@@ -13,7 +13,7 @@ from schema.user import User as db_User
 
 router_project = APIRouter()
 
-@router_project.post("/create_project/")
+@router_project.post("/create_project")
 async def create_project(
     data: CreateProject,
     current_user: db_User = Depends(get_current_manager),
@@ -22,7 +22,7 @@ async def create_project(
     project = await project_service.create_project(data, current_user)
     return {"status": "Project Created Successfully", "Project ID": project.id}
 
-@router_project.post("/create_tag/")
+@router_project.post("/create_tag")
 async def create_tag(
     data: CreateTag,
     current_user: db_User = Depends(get_current_user),
@@ -31,7 +31,7 @@ async def create_tag(
     tag = await project_service.create_tag(data, current_user)
     return {"status": "Tag Created Successfully", "Tag ID": tag.id}
 
-@router_project.get("/get_all_tags/")
+@router_project.get("/get_all_tags")
 async def get_all_tags(
     current_user: db_User = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
@@ -39,14 +39,14 @@ async def get_all_tags(
     return await project_service.get_all_tags()
 
 
-@router_project.get("/get_all_projects/")
+@router_project.get("/get_all_projects")
 async def get_all_projects(
     current_user: db_User = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
 ):
-    return await project_service.get_all_projects()
+    return await project_service.get_all_projects(current_user)
 
-@router_project.patch("/archive_project/")
+@router_project.patch("/archive_project")
 async def archive_project_route(
     project: ArchiveProject,
     current_user: db_User = Depends(get_current_user),
@@ -61,9 +61,17 @@ async def archive_project_route(
         "Archived": changed_project.archived,
     }
 
+@router_project.delete("/hard_delete_project")
+async def hard_delete_project_route(
+    project_id: str,
+    current_user: db_User = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    return await project_service.hard_delete_project(current_user, project_id)
+
 from models.project_models import ProjectUpdate
 
-@router_project.patch("/update_project/")
+@router_project.patch("/update_project")
 async def update_project_route(
     data: ProjectUpdate,
     current_user: db_User = Depends(get_current_user),

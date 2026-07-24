@@ -34,7 +34,7 @@ async def get_me(current_user: db_User = Depends(get_current_user)):
     }
 
 
-@router_user_management.patch("/modify_user_status/")
+@router_user_management.patch("/modify_user_status")
 async def modify_status(
     data: ChangeStatus,
     user_service: Annotated[UserManagementService, Depends(get_user_service)],
@@ -53,7 +53,7 @@ async def modify_status(
     }
 
 
-@router_user_management.patch("/soft_delete_user/")
+@router_user_management.patch("/soft_delete_user")
 async def soft_delete(
     user_service: Annotated[UserManagementService, Depends(get_user_service)],
     current_user: db_User = Depends(get_current_user),
@@ -66,7 +66,7 @@ async def soft_delete(
     }
 
 
-@router_user_management.patch("/change_user_privacy/")
+@router_user_management.patch("/change_user_privacy")
 async def change_privacy(
     new_level: UserPrivacy,
     user_service: Annotated[UserManagementService, Depends(get_user_service)],
@@ -109,4 +109,20 @@ async def get_all_users(
     """Get All Users"""
     all_users = await user_service.get_all_users()
     return all_users
+from models.user_model import UserPrivacy, CreateAssignUser, ChangeUserRole, CreateExternalCollaborator
 
+@router_user_management.post("/create_external_collaborator")
+async def create_external_collaborator(
+    data: CreateExternalCollaborator,
+    user_service: Annotated[UserManagementService, Depends(get_user_service)],
+    current_user: db_User = Depends(get_current_user),
+):
+    return await user_service.create_external_collaborator(data, current_user)
+
+@router_user_management.delete("/hard_delete_user/{user_id}")
+async def hard_delete_user_route(
+    user_id: str,
+    user_service: Annotated[UserManagementService, Depends(get_user_service)],
+    current_admin: db_User = Depends(get_current_admin),
+):
+    return await user_service.hard_delete_user(user_id, current_admin)

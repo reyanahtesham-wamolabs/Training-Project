@@ -36,12 +36,17 @@ class TeamRepo:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def add_member(user_id: str, team_id: str, session: AsyncSession) -> db_team_member:
-        member = db_team_member(user_id=user_id, team_id=team_id)
+    async def add_member(user_id: str, team_id: str, project_role: str, session: AsyncSession) -> db_team_member:
+        member = db_team_member(user_id=user_id, team_id=team_id, project_role=project_role)
         session.add(member)
         await session.commit()
-        await session.refresh(member)
-        return member
+        stmt = (
+            select(db_team_member)
+            .where(db_team_member.id == member.id)
+            .options(joinedload(db_team_member.user))
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one()
 
     @staticmethod
     async def get_membership(user_id: str, team_id: str, session: AsyncSession) -> db_team_member | None:
@@ -61,7 +66,13 @@ class TeamRepo:
 
     @staticmethod
     async def get_member_by_id(member_id: str, session: AsyncSession) -> db_team_member | None:
-        return await session.get(db_team_member, member_id)
+        stmt = (
+            select(db_team_member)
+            .where(db_team_member.id == member_id)
+            .options(joinedload(db_team_member.user))
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
 
     @staticmethod
     async def get_members_for_team(team_id: str, session: AsyncSession):
@@ -102,3 +113,61 @@ class TeamRepo:
         )
         result = await session.execute(stmt)
         return result.scalars().all()
+
+    @staticmethod
+    async def is_project_admin(user_id: str, project_id: str, session: AsyncSession) -> bool:
+        from schema.enums import AssignmentRole
+        from sqlalchemy import exists
+        stmt = select(
+            exists().where(
+                db_team_member.user_id == user_id,
+                db_team_member.project_role == AssignmentRole.project_admin,
+                db_team_member.team_id.in_(
+                    select(db_team.id).where(db_team.project_id == project_id)
+                )
+            )
+        )
+        return bool(await session.scalar(stmt))
+
+    @staticmethod
+    async def is_user_in_project_team(user_id: str, project_id: str, session: AsyncSession) -> bool:
+        from sqlalchemy import exists
+        stmt = select(
+            exists()
+            .where(db_team_member.user_id == user_id)
+            .where(
+                db_team_member.team_id.in_(
+                    select(db_team.id).where(db_team.project_id == project_id)
+                )
+            )
+        )
+        return bool(await session.scalar(stmt))
+
+    @staticmethod
+    async def add_user_to_project_team(user_id: str, project_id: str, session: AsyncSession) -> db_team_member | None:
+        import uuid
+        stmt = select(db_team).where(db_team.project_id == project_id)
+        res = await session.execute(stmt)
+        team = res.scalar_one_or_none()
+        if team is not None:
+            team_member = db_team_member(
+                id=str(uuid.uuid4()),
+                team_id=team.id,
+                user_id=user_id
+            )
+            session.add(team_member)
+            await session.commit()
+            return team_member
+        return None
+
+    @staticmethod
+    async def get_member_ids_by_team(team_id: str, session: AsyncSession) -> list[str]:
+        stmt = select(db_team_member.user_id).where(db_team_member.team_id == team_id)
+        result = await session.execute(stmt)
+        return [row[0] for row in result.all() if row[0] is not None]
+
+    @staticmethod
+    async def get_member_ids_by_project(project_id: str, session: AsyncSession) -> list[str]:
+        stmt = select(db_team_member.user_id).join(db_team).where(db_team.project_id == project_id)
+        result = await session.execute(stmt)
+        return [row[0] for row in result.all() if row[0] is not None]

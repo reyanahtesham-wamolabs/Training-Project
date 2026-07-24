@@ -35,13 +35,60 @@ class TaskCrud:
 
     @staticmethod
     async def get_task_by_id(task_id: str, session: AsyncSession) -> db_task | None:
-        return await session.get(db_task, task_id)
+        stmt = (
+            select(db_task)
+            .options(
+                selectinload(db_task.prerequisites),
+                selectinload(db_task.dependants),
+                selectinload(db_task.assignments).selectinload(db_Assignment.user),
+            )
+            .where(db_task.id == task_id)
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
 
     @staticmethod
     async def delete_task(task_id: str, session: AsyncSession) -> bool:
         task = await session.get(db_task, task_id)
         if task is None:
             return False
+
+        task.soft_delete = True
+        await session.commit()
+        return True
+
+    @staticmethod
+    async def restore_task(task_id: str, session: AsyncSession) -> bool:
+        task = await session.get(db_task, task_id)
+        if task is None:
+            return False
+
+        task.soft_delete = False
+        await session.commit()
+        return True
+
+    @staticmethod
+    async def hard_delete_task(task_id: str, session: AsyncSession) -> bool:
+        from schema.task import association_table
+        from schema.assignment import Assignment as db_Assignment
+        from schema.comment import Comment as db_Comment
+        from sqlalchemy import delete, or_
+
+        task = await session.get(db_task, task_id)
+        if task is None:
+            return False
+
+        await session.execute(
+            delete(association_table).where(
+                or_(
+                    association_table.c.prerequisite_task_id == task_id,
+                    association_table.c.dependant_task_id == task_id
+                )
+            )
+        )
+        await session.execute(delete(db_Assignment).where(db_Assignment.task_id == task_id))
+        await session.execute(delete(db_Comment).where(db_Comment.task_id == task_id))
+
         await session.delete(task)
         await session.commit()
         return True
@@ -56,22 +103,27 @@ class TaskCrud:
         for field, value in update_data.items():
             setattr(task, field, value)
 
+        # If status is updated away from archived or soft_delete is explicitly False, clear soft_delete
+        if getattr(data, "soft_delete", None) is False:
+            task.soft_delete = False
+        elif getattr(data, "status", None) and str(data.status).lower() != "archived":
+            task.soft_delete = False
+
         await session.commit()
         await session.refresh(task)
         return task
 
     @staticmethod
     async def get_all_tasks(session: AsyncSession):
-        stmt = select(db_task)
+        stmt = select(db_task).where(db_task.soft_delete == False)
         result = await session.execute(stmt)
         return result.scalars().all()
     
     @staticmethod
-    async def get_user_tasks(user_id,session: AsyncSession):
-        stmt = select(db_Assignment.task).where(db_Assignment.user_id==user_id)
+    async def get_user_tasks(user_id, session: AsyncSession):
+        stmt = select(db_Assignment.task).join(db_task).where(db_Assignment.user_id == user_id, db_task.soft_delete == False)
         result = await session.execute(stmt)
-        result.scalars().all()
-        return result
+        return result.scalars().all()
     
     @staticmethod
     async def get_all_tasks_filtered(
@@ -82,6 +134,7 @@ class TaskCrud:
         stmt = (
             select(db_task)
             .options(
+                selectinload(db_task.prerequisites),
                 selectinload(db_task.assignments)
                 .selectinload(db_Assignment.user)
             )
@@ -90,7 +143,20 @@ class TaskCrud:
         # Admin and Manager see everything
         if current_user.role in [Roles.admin, Roles.manager]:
             result = await session.execute(stmt)
-            return result.scalars().all()
+            return list(result.scalars().all())
+
+        # Determine which projects the user is "assigned to"
+        # 1. Projects where user is in the team
+        team_stmt = select(db_Team.project_id).join(db_TeamMember).where(db_TeamMember.user_id == current_user.id)
+        team_res = await session.execute(team_stmt)
+        project_ids_from_teams = set(team_res.scalars().all())
+
+        # 2. Projects where user has a task assignment
+        assignment_stmt = select(db_task.project_id).join(db_Assignment).where(db_Assignment.user_id == current_user.id)
+        assignment_res = await session.execute(assignment_stmt)
+        project_ids_from_assignments = set(assignment_res.scalars().all())
+
+        assigned_project_ids = project_ids_from_teams | project_ids_from_assignments
 
         # Load tasks
         result = await session.execute(stmt)
@@ -98,9 +164,30 @@ class TaskCrud:
 
         visible_tasks = []
         for task in tasks:
+            # 1. User is directly assigned to the task
             is_assigned = any(assignment.user_id == current_user.id for assignment in task.assignments)
             if is_assigned:
                 visible_tasks.append(task)
+                continue
+
+            # 2. Task is in a project the user is assigned to
+            if task.project_id in assigned_project_ids:
+                if not task.assignments:
+                    # Task has no assignees, so it's visible to project members
+                    visible_tasks.append(task)
+                    continue
+
+                # Check if any assignee has high privacy
+                has_high_privacy = False
+                for assignment in task.assignments:
+                    if assignment.user:
+                        priv = getattr(assignment.user.privacy_level, 'value', assignment.user.privacy_level)
+                        if priv == 'high' or priv == Levels.high:
+                            has_high_privacy = True
+                            break
+                            
+                if not has_high_privacy:
+                    visible_tasks.append(task)
 
         return visible_tasks
 
@@ -131,3 +218,24 @@ class TaskCrud:
         prerequisite.dependants.append(dependant)
         await session.commit()
         return True
+
+    @staticmethod
+    async def get_assignee_ids_by_task(task_id: str, session: AsyncSession) -> list[str]:
+        stmt = select(db_Assignment.user_id).where(db_Assignment.task_id == task_id)
+        result = await session.execute(stmt)
+        return [row[0] for row in result.all() if row[0] is not None]
+
+    @staticmethod
+    async def shift_dependants_to_planned(task: db_task, session: AsyncSession):
+        from schema.enums import ProjectStatus
+        planned_val = ProjectStatus.planned if hasattr(ProjectStatus, 'planned') else 'planned'
+        changed = False
+        for dep in task.dependants:
+            dep_status = str(getattr(dep.status, 'value', dep.status))
+            if dep_status != 'planned':
+                dep.status = planned_val
+                session.add(dep)
+                changed = True
+        if changed:
+            await session.commit()
+            await session.refresh(task)

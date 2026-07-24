@@ -20,6 +20,9 @@ from  schema.user import User as db_user
 from schema.enums import OTPAction
 from repository.user_repository import get_user_by_email
 from schema.enums import Roles
+from services.user_services_management import UserManagementService
+from repository.user_repository import get_user_by_email
+import asyncio
 class UserAuthenticationServices:
     async def user_signup(user_data: CreateUser, session):
         existing = await get_user_by_email(user_data.email, session)
@@ -49,8 +52,7 @@ class UserAuthenticationServices:
 
         otp_code = generate_OTP()
 
-        # Fire email in background — don't block signup on SMTP
-        asyncio.create_task(email_OTP(otp_code, user_complete_data.email))
+        asyncio.create_task(email_OTP(otp_code, user_complete_data.email,"account verification"))
 
         otp = db_otp(
             user_id=user_complete_data.id,
@@ -81,6 +83,41 @@ class UserAuthenticationServices:
         }
 
     async def user_login(user_data: UserLogin, session):
+        user=await get_user_by_email(user_data.email,session)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        if user.soft_delete:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User is deleted",
+            )
+        if not user.active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User has been deactivated",
+            )
+        if not check_password(user_data.password, user.password):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+        if not user.verified:
+            otp_code = generate_OTP()
+            asyncio.create_task(email_OTP(otp_code, user.email, "account verification"))
+            otp = db_otp(
+                user_id=user.id,
+                user_name=user.name,
+                code=hash_password(otp_code),
+                action=OTPAction.verify_profile,
+            )
+            try:
+                await UserCrud.insert_OTP(otp, session)
+            except SQLAlchemyError as e:
+                print(f"[Login Resend OTP DB Error]: {e}")
+
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Verification Needed. A new OTP has been sent to your email.",
+            )
+
         user_obj = await UserCrud.user_login(user_data, session)
         access_token = TokenFunctionality.create_access_token(user_obj.id)
         refresh_token = await TokenFunctionality.create_refresh_token(
@@ -105,7 +142,7 @@ class UserAuthenticationServices:
         otp_code = generate_OTP()
 
         try:
-            await email_OTP(otp_code, current_user.email)
+            await email_OTP(otp_code, current_user.email,"password change")
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -135,7 +172,7 @@ class UserAuthenticationServices:
         otp_code = generate_OTP()
 
         try:
-            await email_OTP(otp_code, current_user.email)
+            await email_OTP(otp_code, current_user.email,"email change")
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -164,7 +201,7 @@ class UserAuthenticationServices:
         otp_code = generate_OTP()
 
         try:
-            await email_OTP(otp_code, current_user.email)
+            await email_OTP(otp_code, current_user.email,"name change")
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -222,8 +259,8 @@ class UserAuthenticationServices:
             expired_otp = result[1]
             new_otp_code = generate_OTP()
             
-            import asyncio
-            asyncio.create_task(email_OTP(new_otp_code, user.email))
+
+            asyncio.create_task(email_OTP(new_otp_code, user.email,"expired otp refresh"))
             
             new_otp = db_otp(
                 user_id=expired_otp.user_id,

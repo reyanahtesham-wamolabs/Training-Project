@@ -16,3 +16,7 @@ class NotificationOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class UpdateNotificationDelivery(BaseModel):
+    delivered: datetime

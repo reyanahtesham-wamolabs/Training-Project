@@ -11,7 +11,17 @@ from repository.user_repository import get_user_assignment
 from services.activity_log_services import ActivityLogService
 from schema.enums import ActivityActionType
 from services.notification_service import NotificationService
+from models.team_models import TeamCreate
+from services.team_service import TeamService
+from schema.enums import Roles
+from sqlalchemy import select, exists
+from schema.task import Task
+from schema.assignment import Assignment
+from schema.team import Team as db_Team, TeamMember as db_TeamMember
+from schema.enums import Roles
+from schema.team import TeamMember, Team
 
+                
 class ProjectService:
     def __init__(self, db_session: AsyncSession):
         self.session = db_session
@@ -23,6 +33,12 @@ class ProjectService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Project '{data.name}' already exists",
             )
+        if data.start_date and data.end_date:
+            if data.end_date<data.start_date:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Project start date cannot be later than the end date."
+                )        
 
         project = db_project(
             id=str(uuid.uuid4()),
@@ -35,8 +51,22 @@ class ProjectService:
             soft_delete=False,
         )
 
+        if getattr(data, "tags", None):
+            project.tags = await ProjectRepo.get_tags_by_names(data.tags, self.session)
+
         try:
             created_project = await ProjectRepo.create_project(project, self.session)
+
+            team_service = TeamService(self.session)
+            team_data = TeamCreate(
+                project_id=created_project.id,
+                name=f"{created_project.name}-team"
+            )
+            new_team = await team_service.create_team(team_data)
+            
+            # Automatically add the creator as the project admin
+            if current_user and current_user.email:
+                await team_service.add_member(current_user.email, new_team.id, "project_admin")
 
             await ActivityLogService.log_activity_static(
                 session=self.session,
@@ -45,7 +75,7 @@ class ProjectService:
                 message=f"Project '{created_project.name}' created by user '{current_user.name}'",
                 project_id=created_project.id
             )
-            from services.notification_service import NotificationService
+
             await NotificationService.notify_user(
                 user_id=current_user.id,
                 subject="Project Created",
@@ -93,9 +123,13 @@ class ProjectService:
                 detail="Failed to fetch tags due to a database error",
             ) from e
 
-    async def get_all_projects(self):
+    async def get_all_projects(self, current_user=None):
         try:
-            return await ProjectRepo.get_all_projects(self.session)
+            projects = await ProjectRepo.get_all_projects(self.session)
+            if current_user and getattr(current_user, 'is_external', False):
+                allowed_project_ids = await ProjectRepo.get_allowed_project_ids_for_user(current_user.id, self.session)
+                return [p for p in projects if p.id in allowed_project_ids]
+            return projects
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -114,23 +148,12 @@ class ProjectService:
                 detail=f"Project with id '{project_id}' not found",
             )
 
-        from schema.enums import Roles
-        from sqlalchemy import select, exists
-        from schema.task import Task
-        from schema.assignment import Assignment
 
-        # Check if user is assigned as project_admin on any task within this project
-        stmt = select(
-            exists().where(
-                Assignment.user_id == current_user.id,
-                Assignment.role == AssignmentRole.project_admin,
-                Assignment.task_id == Task.id,
-                Task.project_id == project_id,
-            )
-        )
-        is_project_admin = await self.session.scalar(stmt)
+        from repository.team import TeamRepo
+        is_project_admin = await TeamRepo.is_project_admin(current_user.id, project_id, self.session)
+        user_role = str(getattr(current_user.role, 'value', current_user.role)).lower()
 
-        if current_user.role not in [Roles.admin, Roles.manager] and not is_project_admin:
+        if user_role not in ['admin', 'manager'] and not is_project_admin:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User is not authorized to archive project",
@@ -146,7 +169,6 @@ class ProjectService:
                 message=f"Project '{result.name}' archived status changed to {archive_status} by '{current_user.name}'",
                 project_id=project_id
             )
-            from services.notification_service import NotificationService
             status_str = "archived" if archive_status else "unarchived"
             await NotificationService.notify_project_members(
                 project_id=project_id,
@@ -163,6 +185,37 @@ class ProjectService:
                 detail="Failed to archive project due to a database error",
             ) from e
 
+    async def hard_delete_project(self, current_user: db_user, project_id: str):
+        project = await ProjectRepo.get_project_by_id(project_id, self.session)
+        if project is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project with id '{project_id}' not found",
+            )
+        from repository.team import TeamRepo
+        is_project_admin = await TeamRepo.is_project_admin(current_user.id, project_id, self.session)
+        user_role = str(getattr(current_user.role, 'value', current_user.role)).lower()
+        if user_role not in ['admin', 'manager'] and not is_project_admin:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User is not authorized to permanently delete project",
+            )
+        try:
+            await ProjectRepo.hard_delete_project(project_id, self.session)
+            await ActivityLogService.log_activity_static(
+                session=self.session,
+                modified_by_user_id=current_user.id,
+                action_type=ActivityActionType.delete_project,
+                message=f"Project '{project.name}' permanently deleted by '{current_user.name}'",
+                project_id=project_id
+            )
+            return {"status": "Project Permanently Deleted"}
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to permanently delete project due to a database error",
+            ) from e
+
     async def update_project(self, data, current_user: db_user) -> db_project:
         project = await ProjectRepo.get_project_by_id(data.id, self.session)
         if not project:
@@ -171,27 +224,23 @@ class ProjectService:
                 detail=f"Project with id '{data.id}' not found",
             )
 
-        from schema.enums import Roles
-        from sqlalchemy import select, exists
-        from schema.task import Task
-        from schema.assignment import Assignment
 
-        stmt = select(
-            exists().where(
-                Assignment.user_id == current_user.id,
-                Assignment.role == AssignmentRole.project_admin,
-                Assignment.task_id == Task.id,
-                Task.project_id == project.id,
-            )
-        )
-        is_project_admin = await self.session.scalar(stmt)
 
-        if current_user.role not in [Roles.admin, Roles.manager] and not is_project_admin:
+        from repository.team import TeamRepo
+        is_project_admin = await TeamRepo.is_project_admin(current_user.id, project.id, self.session)
+        user_role = str(getattr(current_user.role, 'value', current_user.role)).lower()
+
+        if user_role not in ['admin', 'manager'] and not is_project_admin:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User is not authorized to update project",
             )
-
+        if data.start_date and data.end_date:
+            if data.end_date<data.start_date:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Project start date cannot be later than the end date."
+                )        
         updated = await ProjectRepo.update_project(data, self.session)
 
         await ActivityLogService.log_activity_static(

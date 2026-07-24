@@ -8,12 +8,25 @@ from router.activity import router_activity
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from router.user_management import router_user_management
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from scheduler.scheduler import scheduler
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.start()
+
+    yield
+
+    scheduler.shutdown()
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[        
+    allow_origins=[
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",

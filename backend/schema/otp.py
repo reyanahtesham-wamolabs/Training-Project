@@ -7,6 +7,12 @@ from sqlalchemy import Enum as sa_enum,ForeignKey,DateTime
 from sqlalchemy import String
 from datetime import datetime,timezone,timedelta
 import uuid
+from datetime import datetime, timedelta, UTC
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+OPT_EXPIRE_MINUTES=int(os.getenv("OTP_EXPIRE_MINUTES"))
 
 
 
@@ -19,7 +25,7 @@ class OTP(Base):
     code:Mapped[str]
     valid_till: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc) + timedelta(minutes=10),
+        default=lambda: datetime.now(timezone.utc) + timedelta(minutes=OPT_EXPIRE_MINUTES),
     )
     user_id: Mapped[str] = mapped_column(String, ForeignKey("User.id"), nullable=False)
     user_name: Mapped[str] = mapped_column(String, nullable=False)

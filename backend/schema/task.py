@@ -23,12 +23,17 @@ class Task(Base):
     id: Mapped[str] = mapped_column(primary_key=True)
     name: Mapped[str]
     schedule_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[Status]
     soft_delete: Mapped[bool] = mapped_column(Boolean, default=False)
+    due_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, server_default='0')
     priority: Mapped[Levels]
     project_id: Mapped[str] = mapped_column(ForeignKey("Project.id"))
     parent_project: Mapped["Project"] = relationship(back_populates="tasks")
-    assignments: Mapped[List["Assignment"]] = relationship(back_populates="task")
+    assignments: Mapped[List["Assignment"]] = relationship(
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
     comments: Mapped[List["Comment"]] = relationship(
         "Comment",
         back_populates="task",

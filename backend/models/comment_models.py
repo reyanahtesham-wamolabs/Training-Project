@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from helper_functions.validators import non_empty_value
 
 class CommentCreate(BaseModel):
@@ -20,7 +20,7 @@ class CommentResponse(BaseModel):
     user_name: str
     task_id: str
     parent_comment_id: Optional[str] = None
-    reply: Optional["CommentResponse"] = None
+    replies: List["CommentResponse"] = []
 
     class Config:
         from_attributes = True

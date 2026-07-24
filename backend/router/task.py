@@ -8,7 +8,7 @@ from services.task_services import TaskService
 
 router_task = APIRouter()
 
-@router_task.post("/create_task/")
+@router_task.post("/create_task")
 async def create_task_route(
     task_data: TaskCreation,
     current_user: db_User = Depends(get_current_user),
@@ -16,7 +16,7 @@ async def create_task_route(
 ):
     task = await task_service.create_task(task_data, current_user)
     return {"status": "Task Created Successfully", "Task ID": task.id}
-@router_task.post("/get_user_tasks/")
+@router_task.post("/get_user_tasks")
 async def get_user_task_route(
     current_user: db_User = Depends(get_current_user),
     task_service: TaskService = Depends(get_task_service),
@@ -24,23 +24,32 @@ async def get_user_task_route(
     task = await task_service.get_user_task(current_user)
     return task
 
-@router_task.delete("/delete_task/")
+@router_task.delete("/delete_task")
 async def delete_task_route(
     task_id: str,
-    current_user: db_User = Depends(get_current_manager),
+    current_user: db_User = Depends(get_current_user),
     task_service: TaskService = Depends(get_task_service),
 ):
     await task_service.delete_task(task_id, current_user)
     return {"status": "Task Deleted Successfully"}
 
-@router_task.get("/view_task/")
+@router_task.delete("/hard_delete_task")
+async def hard_delete_task_route(
+    task_id: str,
+    current_user: db_User = Depends(get_current_user),
+    task_service: TaskService = Depends(get_task_service),
+):
+    await task_service.hard_delete_task(task_id, current_user)
+    return {"status": "Task Permanently Deleted Successfully"}
+
+@router_task.get("/view_task")
 async def view_task_route(
     current_user: db_User = Depends(get_current_user),
     task_service: TaskService = Depends(get_task_service),
 ):
     return await task_service.get_all_tasks(current_user)
 
-@router_task.patch("/update_task/")
+@router_task.patch("/update_task")
 async def update_task_route(
     user_data: TaskUpdate,
     current_user: db_User = Depends(get_current_user),
@@ -49,7 +58,7 @@ async def update_task_route(
     task = await task_service.update_task(user_data, current_user)
     return {"status": "Task Updated Successfully", "Task ID": task.id}
 
-@router_task.patch("/add_prerequisite/")
+@router_task.patch("/add_prerequisite")
 async def add_prerequisite_route(
     prerequisite_id: str,
     dependant_id: str,

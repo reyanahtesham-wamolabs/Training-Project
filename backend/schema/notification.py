@@ -5,6 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .baseclass import Base
 
+
 class Notification(Base):
     __tablename__ = "Notification"
 
@@ -17,9 +18,7 @@ class Notification(Base):
     related_task_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("Task.id", ondelete="SET NULL"), nullable=True
     )
-    related_comment_id: Mapped[str | None] = mapped_column(
-        String, nullable=True
-    )
+    related_comment_id: Mapped[str | None] = mapped_column(String, nullable=True)
     related_project_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("Project.id", ondelete="SET NULL"), nullable=True
     )

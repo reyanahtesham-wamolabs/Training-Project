@@ -21,6 +21,7 @@ class TeamOut(BaseModel):
 class TeamMemberCreate(BaseModel):
     email: email_value
     team_id: str
+    project_role: str = "project_member"
 
 
 class TeamMemberOut(BaseModel):
@@ -30,6 +31,7 @@ class TeamMemberOut(BaseModel):
     joined_at: datetime
     name: str | None = None
     email: str | None = None
+    project_role: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

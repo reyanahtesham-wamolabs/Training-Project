@@ -23,8 +23,35 @@ export default function TeamChatModal({ team, teamMembers, currentUser, onClose 
 
   useEffect(() => {
     fetchMessages();
-    const interval = setInterval(fetchMessages, 3000);
-    return () => clearInterval(interval);
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.hostname || 'localhost';
+    const port = '8000';
+    const wsUrl = `${protocol}//${host}:${port}/Team/ws/team_chat/${team.id}`;
+
+    let socket;
+    try {
+      socket = new WebSocket(wsUrl);
+      socket.onmessage = (event) => {
+        try {
+          const incomingMsg = JSON.parse(event.data);
+          if (incomingMsg && incomingMsg.id) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === incomingMsg.id)) return prev;
+              return [...prev, incomingMsg];
+            });
+          }
+        } catch (e) {
+          console.warn("Failed to parse incoming WebSocket message:", e);
+        }
+      };
+    } catch (err) {
+      console.warn("WebSocket connection error:", err);
+    }
+
+    return () => {
+      if (socket) socket.close();
+    };
   }, [team.id]);
 
   useEffect(() => {
@@ -35,9 +62,15 @@ export default function TeamChatModal({ team, teamMembers, currentUser, onClose 
     e.preventDefault();
     if (!newMessage.trim()) return;
     try {
-      await teamAPI.sendMessage({ team_id: team.id, content: newMessage });
+      const content = newMessage;
       setNewMessage('');
-      fetchMessages();
+      const sentMsg = await teamAPI.sendMessage({ team_id: team.id, content });
+      if (sentMsg && sentMsg.id) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === sentMsg.id)) return prev;
+          return [...prev, sentMsg];
+        });
+      }
     } catch (err) {
       setError(err.message || 'Failed to send message');
     }
@@ -66,7 +99,6 @@ export default function TeamChatModal({ team, teamMembers, currentUser, onClose 
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>💬 {team.name} Chat</h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Team ID: {team.id}</p>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={onClose}>✕</button>
         </div>

@@ -16,6 +16,11 @@ class CommentService:
     async def create_comment(
         self, data: CommentCreate, current_user
     ) -> db_Comment:
+        if current_user.is_external:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="External collaborators cannot create comments",
+            )
         task = await TaskCrud.get_task_by_id(data.task_id, self.session)
         if task is None:
             raise HTTPException(
@@ -42,20 +47,9 @@ class CommentService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Parent comment does not belong to the same task",
                 )
+            # Flatten nesting: attach replies on replies to top-level parent comment
             if parent_comment.parent_comment_id is not None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Replies can only be made to top-level comments",
-                )
-            from sqlalchemy import select, exists
-            stmt = select(exists().where(db_Comment.parent_comment_id == data.parent_comment_id))
-            result = await self.session.execute(stmt)
-            has_reply = result.scalar()
-            if has_reply:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="This comment already has a reply",
-                )
+                data.parent_comment_id = parent_comment.parent_comment_id
 
         try:
             comment = await CommentCrud.add_comment(data, current_user.id, self.session)
@@ -69,7 +63,6 @@ class CommentService:
 
         try:
             if data.parent_comment_id:
-                # Notify the parent comment's author
                 if parent_comment.user_id != current_user.id:
                     await NotificationService.notify_user(
                         user_id=parent_comment.user_id,
@@ -135,9 +128,10 @@ class CommentService:
         if task:
             is_padmin = await CommentCrud.is_project_admin(current_user.id, task.project_id, self.session)
 
+        user_role = str(current_user.role)
         can_delete = (
             comment.user_id == current_user.id
-            or current_user.role == Roles.admin
+            or user_role == "admin"
             or is_padmin
         )
 
