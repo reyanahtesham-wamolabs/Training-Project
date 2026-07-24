@@ -6,8 +6,13 @@ from schema.assignment import Assignment as db_Assignment
 from schema.user import User as db_User
 from schema.team import Team as db_Team, TeamMember as db_TeamMember
 from schema.task import Task as db_task
-from models.task_models import Task, TaskCreation, TaskUpdate
-from schema.enums import Levels, Roles
+from models.task import Task, TaskCreation, TaskUpdate
+from schema.enums import Levels, Roles, ProjectStatus as Status
+from datetime import date
+from schema.task import association_table
+from schema.assignment import Assignment as db_Assignment
+from schema.comment import Comment as db_Comment
+from sqlalchemy import delete, or_
 
 
 class TaskCrud:
@@ -44,10 +49,12 @@ class TaskCrud:
             )
             .where(db_task.id == task_id)
         )
-        result=await session.execute(stmt)
+        result = await session.execute(stmt)
         task = result.scalar_one_or_none()
-        if task and hasattr(task, 'prerequisites') and task.prerequisites:
-            task.prerequisites = [p for p in task.prerequisites if not getattr(p, 'soft_delete', False)]
+        if task and hasattr(task, "prerequisites") and task.prerequisites:
+            task.prerequisites = [
+                p for p in task.prerequisites if not getattr(p, "soft_delete", False)
+            ]
         return task
 
     @staticmethod
@@ -64,7 +71,7 @@ class TaskCrud:
             delete(association_table).where(
                 or_(
                     association_table.c.prerequisite_task_id == task_id,
-                    association_table.c.dependant_task_id == task_id
+                    association_table.c.dependant_task_id == task_id,
                 )
             )
         )
@@ -83,10 +90,6 @@ class TaskCrud:
 
     @staticmethod
     async def hard_delete_task(task_id: str, session: AsyncSession) -> bool:
-        from schema.task import association_table
-        from schema.assignment import Assignment as db_Assignment
-        from schema.comment import Comment as db_Comment
-        from sqlalchemy import delete, or_
 
         task = await session.get(db_task, task_id)
         if task is None:
@@ -96,11 +99,13 @@ class TaskCrud:
             delete(association_table).where(
                 or_(
                     association_table.c.prerequisite_task_id == task_id,
-                    association_table.c.dependant_task_id == task_id
+                    association_table.c.dependant_task_id == task_id,
                 )
             )
         )
-        await session.execute(delete(db_Assignment).where(db_Assignment.task_id == task_id))
+        await session.execute(
+            delete(db_Assignment).where(db_Assignment.task_id == task_id)
+        )
         await session.execute(delete(db_Comment).where(db_Comment.task_id == task_id))
 
         await session.delete(task)
@@ -132,26 +137,26 @@ class TaskCrud:
         stmt = select(db_task).where(db_task.soft_delete == False)
         result = await session.execute(stmt)
         return result.scalars().all()
-    
+
     @staticmethod
     async def get_user_tasks(user_id, session: AsyncSession):
-        stmt = select(db_Assignment.task).join(db_task).where(db_Assignment.user_id == user_id, db_task.soft_delete == False)
+        stmt = (
+            select(db_Assignment.task)
+            .join(db_task)
+            .where(db_Assignment.user_id == user_id, db_task.soft_delete == False)
+        )
         result = await session.execute(stmt)
         return result.scalars().all()
-    
+
     @staticmethod
     async def get_all_tasks_filtered(
         current_user,
         session: AsyncSession,
     ) -> list[db_task]:
 
-        stmt = (
-            select(db_task)
-            .options(
-                selectinload(db_task.prerequisites),
-                selectinload(db_task.assignments)
-                .selectinload(db_Assignment.user)
-            )
+        stmt = select(db_task).options(
+            selectinload(db_task.prerequisites),
+            selectinload(db_task.assignments).selectinload(db_Assignment.user),
         )
 
         # Admin and Manager see everything
@@ -159,18 +164,30 @@ class TaskCrud:
             result = await session.execute(stmt)
             all_t = list(result.scalars().all())
             for t in all_t:
-                if hasattr(t, 'prerequisites') and t.prerequisites:
-                    t.prerequisites = [p for p in t.prerequisites if not getattr(p, 'soft_delete', False)]
+                if hasattr(t, "prerequisites") and t.prerequisites:
+                    t.prerequisites = [
+                        p
+                        for p in t.prerequisites
+                        if not getattr(p, "soft_delete", False)
+                    ]
             return all_t
 
         # Determine which projects the user is "assigned to"
         # 1. Projects where user is in the team
-        team_stmt = select(db_Team.project_id).join(db_TeamMember).where(db_TeamMember.user_id == current_user.id)
+        team_stmt = (
+            select(db_Team.project_id)
+            .join(db_TeamMember)
+            .where(db_TeamMember.user_id == current_user.id)
+        )
         team_res = await session.execute(team_stmt)
         project_ids_from_teams = set(team_res.scalars().all())
 
         # 2. Projects where user has a task assignment
-        assignment_stmt = select(db_task.project_id).join(db_Assignment).where(db_Assignment.user_id == current_user.id)
+        assignment_stmt = (
+            select(db_task.project_id)
+            .join(db_Assignment)
+            .where(db_Assignment.user_id == current_user.id)
+        )
         assignment_res = await session.execute(assignment_stmt)
         project_ids_from_assignments = set(assignment_res.scalars().all())
 
@@ -183,7 +200,9 @@ class TaskCrud:
         visible_tasks = []
         for task in tasks:
             # 1. User is directly assigned to the task
-            is_assigned = any(assignment.user_id == current_user.id for assignment in task.assignments)
+            is_assigned = any(
+                assignment.user_id == current_user.id for assignment in task.assignments
+            )
             if is_assigned:
                 visible_tasks.append(task)
                 continue
@@ -199,17 +218,23 @@ class TaskCrud:
                 has_high_privacy = False
                 for assignment in task.assignments:
                     if assignment.user:
-                        priv = getattr(assignment.user.privacy_level, 'value', assignment.user.privacy_level)
-                        if priv == 'high' or priv == Levels.high:
+                        priv = getattr(
+                            assignment.user.privacy_level,
+                            "value",
+                            assignment.user.privacy_level,
+                        )
+                        if priv == "high" or priv == Levels.high:
                             has_high_privacy = True
                             break
-                            
+
                 if not has_high_privacy:
                     visible_tasks.append(task)
 
         for t in visible_tasks:
-            if hasattr(t, 'prerequisites') and t.prerequisites:
-                t.prerequisites = [p for p in t.prerequisites if not getattr(p, 'soft_delete', False)]
+            if hasattr(t, "prerequisites") and t.prerequisites:
+                t.prerequisites = [
+                    p for p in t.prerequisites if not getattr(p, "soft_delete", False)
+                ]
 
         return visible_tasks
 
@@ -242,7 +267,9 @@ class TaskCrud:
         return True
 
     @staticmethod
-    async def get_assignee_ids_by_task(task_id: str, session: AsyncSession) -> list[str]:
+    async def get_assignee_ids_by_task(
+        task_id: str, session: AsyncSession
+    ) -> list[str]:
         stmt = select(db_Assignment.user_id).where(db_Assignment.task_id == task_id)
         result = await session.execute(stmt)
         return [row[0] for row in result.all() if row[0] is not None]
@@ -250,14 +277,80 @@ class TaskCrud:
     @staticmethod
     async def shift_dependants_to_planned(task: db_task, session: AsyncSession):
         from schema.enums import ProjectStatus
-        planned_val = ProjectStatus.planned if hasattr(ProjectStatus, 'planned') else 'planned'
+
+        planned_val = (
+            ProjectStatus.planned if hasattr(ProjectStatus, "planned") else "planned"
+        )
         changed = False
         for dep in task.dependants:
-            dep_status = str(getattr(dep.status, 'value', dep.status))
-            if dep_status != 'planned':
+            dep_status = str(getattr(dep.status, "value", dep.status))
+            if dep_status != "planned":
                 dep.status = planned_val
                 session.add(dep)
                 changed = True
         if changed:
             await session.commit()
             await session.refresh(task)
+
+    @staticmethod
+    async def get_tasks_nearing_due_date(
+        tomorrow: date, yesterday: date, session: AsyncSession
+    ) -> list[db_task]:
+        stmt = (
+            select(db_task)
+            .where(
+                db_task.soft_delete == False,
+                db_task.status != Status.finished,
+                db_task.due_date != None,
+                db_task.due_date <= tomorrow,
+                db_task.due_date > yesterday,
+                db_task.due_reminder_sent == False,
+            )
+            .options(selectinload(db_task.project))
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_users_assigned_to_task(
+        task_id: str, session: AsyncSession
+    ) -> list[db_User]:
+        from .user import get_active_users
+
+        active_users = await get_active_users()
+        stmt = (
+            select(db_User)
+            .join(db_Assignment, db_Assignment.user_id == db_User.id)
+            .where(db_Assignment.task_id == task_id)
+            .where(db_User in active_users)
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_softdeleted_tasks(session: AsyncSession) -> list[db_task]:
+        stmt = (
+            select(db_task)
+            .options(
+                selectinload(db_task.prerequisites),
+                selectinload(db_task.dependants),
+                selectinload(db_task.assignments).selectinload(db_Assignment.user),
+            )
+            .where(db_task.soft_delete == True)
+        )
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def get_active_tasks(session: AsyncSession) -> list[db_task]:
+        stmt = (
+            select(db_task)
+            .options(
+                selectinload(db_task.prerequisites),
+                selectinload(db_task.dependants),
+                selectinload(db_task.assignments).selectinload(db_Assignment.user),
+            )
+            .where(db_task.soft_delete == False)
+        )
+        result = await session.execute(stmt)
+        return list(result.scalars().all())

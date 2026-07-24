@@ -1,5 +1,5 @@
 import asyncio
-from models.user_model import (
+from models.user import (
     User,
     CreateUser,
     UserLogin,
@@ -8,15 +8,16 @@ from models.user_model import (
     ChangeName,
 )
 from repository.user_auth import UserCrud
-from .JWT_services import TokenFunctionality
+from .jwt import TokenFunctionality
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from helper_functions.hashing import hash_password, check_password
-from helper_functions.opt_gen import generate_OTP, email_OTP
+from helper_functions.opt_gen import generate_OTP
+from helper_functions.email import email_OTP
 from schema.otp import OTP as db_otp
 from schema.user import User as db_user
 from schema.enums import OTPAction, Roles
-from repository.user_repository import update_user, get_user_by_email
+from repository.user import update_user, get_user_by_email
 
 
 class UserAuthenticationServices:

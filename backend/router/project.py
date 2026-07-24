@@ -1,16 +1,16 @@
 from fastapi import APIRouter, Depends
 from typing import Annotated
 
-from services.project_services import ProjectService
+from services.project import ProjectService
 from dependencies.services import get_project_service
 from dependencies.authorization import (
     get_current_user,
     get_current_admin,
     get_current_manager,
 )
-from models.project_models import CreateProject, CreateTag, ArchiveProject,AddTagToProject
+from models.project import CreateProject, CreateTag, ArchiveProject,AddTagToProject
 from schema.user import User as db_User
-from models.project_models import ProjectUpdate
+from models.project import ProjectUpdate
 
 router_project = APIRouter()
 
@@ -46,6 +46,20 @@ async def get_all_projects(
     project_service: ProjectService = Depends(get_project_service),
 ):
     return await project_service.get_all_projects(current_user)
+
+@router_project.get("/get_softdeleted_projects")
+async def get_softdeleted_projects(
+    current_user: db_User = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    return await project_service.get_softdeleted_projects(current_user)
+
+@router_project.get("/get_active_projects")
+async def get_active_projects(
+    current_user: db_User = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+):
+    return await project_service.get_active_projects(current_user)
 
 @router_project.patch("/archive_project")
 async def archive_project_route(

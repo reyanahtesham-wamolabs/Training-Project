@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from models.user_model import (
+from models.user import (
     CreateUser,
     UserLogin,
     ChangePassword,
@@ -7,8 +7,8 @@ from models.user_model import (
     ChangeName,
     VerifyOTP,
 )
-from models.token_models import RefreshToken
-from services.auth_services import UserAuthenticationServices
+from models.token import RefreshToken
+from services.auth import UserAuthenticationServices
 from dependencies.services import get_auth_service
 from schema.user import User as db_User
 from dependencies.authorization import get_current_user

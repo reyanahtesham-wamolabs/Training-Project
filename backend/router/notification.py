@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from dependencies.services import get_notification_service
 from dependencies.authorization import get_current_user
-from models.notification_models import NotificationOut, UpdateNotificationDelivery
+from models.notification import NotificationOut, UpdateNotificationDelivery
 from schema.user import User as db_User
-from services.notification_service import NotificationService
+from services.notification import NotificationService
 
 router_notification = APIRouter()
 

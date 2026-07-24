@@ -6,8 +6,8 @@ from repository.comment import CommentCrud
 from repository.task import TaskCrud
 from schema.comment import Comment as db_Comment
 from schema.enums import Roles
-from models.comment_models import CommentCreate, CommentUpdate
-from services.notification_service import NotificationService
+from models.comment import CommentCreate, CommentUpdate
+from services.notification import NotificationService
 
 class CommentService:
     def __init__(self, db_session: AsyncSession):

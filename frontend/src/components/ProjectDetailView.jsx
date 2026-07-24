@@ -29,7 +29,7 @@ export default function ProjectDetailView({
 
   // Find Team corresponding to this project
   const projectTeam = teams.find(t => t.project_id === project.id) || { id: project.id, name: `${project.name} Team` };
-  const membersOfThisProject = teamMembers.filter(m => m.team_id === projectTeam.id);
+  const membersOfThisProject = teamMembers.filter(m => m.team_id === projectTeam.id && m.active !== false && !m.soft_delete);
 
   const isOverallAdminOrManager = ['admin', 'manager'].includes(currentUser?.role?.toLowerCase());
   const isProjectAdmin = membersOfThisProject.some(m => 

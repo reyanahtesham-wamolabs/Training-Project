@@ -13,7 +13,7 @@ class Task(BaseModel):
     priority:Levels
     project_id:non_empty_value
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))    
-   
+
 
 class TaskCreation(BaseModel):
     name : non_empty_value

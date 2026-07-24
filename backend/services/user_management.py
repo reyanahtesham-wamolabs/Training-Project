@@ -1,33 +1,35 @@
 from __future__ import annotations
 from helper_functions.hashing import hash_password, MAX_PASSWORD_LENGTH
-from repository.user_repository import (
+from repository.user import (
     get_user_by_email,
     save_user,
     update_user,
     assign_user as repo_assign_user,
     get_all_users as get_users,
+    get_softdeleted_users as repo_get_softdeleted_users,
+    get_active_users as repo_get_active_users,
     get_user_assignment,
     delete_assignment,
 )
-from helper_functions.opt_gen import email_collaborator_welcome
+from helper_functions.email import email_collaborator_welcome
 from repository.project import ProjectRepo
 from pydantic import EmailStr
 from schema.enums import Roles, Levels
 from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from models.user_modification import ChangeStatus
-from models.user_model import AssignUser, CreateAssignUser, ChangeUserRole, CreateExternalCollaborator, UnassignUser
+from models.user import AssignUser, CreateAssignUser, ChangeUserRole, CreateExternalCollaborator, UnassignUser
 from repository.task import TaskCrud
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from schema.team import Team as db_Team, TeamMember as db_TeamMember
 from sqlalchemy import select, exists
-from services.notification_service import NotificationService
+from services.notification import NotificationService
 from schema.enums import AssignmentRole
 import secrets
 import uuid
 from schema.user import User as db_User
-from services.activity_log_services import ActivityLogService
+from services.activity_log import ActivityLogService
 from schema.enums import ActivityActionType
 
 
@@ -71,6 +73,8 @@ class UserManagementService:
 
         if data.active is not None:
             user.active = bool(data.active)
+            if data.active:
+                user.soft_delete = False
 
         result = await update_user(user, self.session)
         try:
@@ -95,7 +99,7 @@ class UserManagementService:
     delete_user = soft_delete_user
 
     async def hard_delete_user(self, user_id: str, current_admin):
-        from repository.user_repository import get_user_by_id, hard_delete_user
+        from repository.user import get_user_by_id, hard_delete_user
         user_obj = await get_user_by_id(user_id, self.session)
         if user_obj is None:
             raise HTTPException(
@@ -118,6 +122,12 @@ class UserManagementService:
         
     async def get_all_users(self):
         return await get_users(self.session)
+
+    async def get_softdeleted_users(self):
+        return await repo_get_softdeleted_users(self.session)
+
+    async def get_active_users(self):
+        return await repo_get_active_users(self.session)
 
     async def assign_user(self, assignment_data: CreateAssignUser, current_user=None):
         if current_user and getattr(current_user, 'is_external', False):
@@ -147,6 +157,11 @@ class UserManagementService:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"User '{assignment.user_email}' is an external collaborator and cannot be assigned to tasks",
+            )
+        if not getattr(user, 'active', True) or getattr(user, 'soft_delete', False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"User '{assignment.user_email}' is inactive or deleted and cannot be assigned to tasks",
             )
         task = await TaskCrud.get_task_by_id(assignment.task_id, self.session)
         if task is None:

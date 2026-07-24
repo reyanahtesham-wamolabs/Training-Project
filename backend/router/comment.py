@@ -4,8 +4,8 @@ from typing import List
 from dependencies.services import get_comment_service
 from dependencies.authorization import get_current_user
 from schema.user import User as db_User
-from models.comment_models import CommentCreate, CommentUpdate, CommentResponse
-from services.comment_services import CommentService
+from models.comment import CommentCreate, CommentUpdate, CommentResponse
+from services.comment import CommentService
 
 router_comment = APIRouter()
 

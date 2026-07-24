@@ -140,7 +140,7 @@ export default function Navbar({
             <button
               className="btn btn-danger btn-sm"
               onClick={() => {
-                if (window.confirm('Are you sure you want to delete your profile? This action cannot be undone.')) {
+                if (window.confirm('Are you sure you want to delete your profile. To undo this action contact the Admin.')) {
                   onDeleteProfile();
                 }
               }}

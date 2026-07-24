@@ -149,7 +149,11 @@ export default function EditProjectModal({
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {projectTasks.map(task => {
-                  const hasAssignees = task.assignments && task.assignments.length > 0;
+                  const activeAssignees = task.assignments?.filter(a => {
+                    const u = a.user || users.find(x => x.id === a.user_id || x.email === a.user_email);
+                    return !u || (u.active !== false && !u.soft_delete);
+                  }) || [];
+
                   return (
                     <div key={task.id} style={{ border: '1px solid var(--border-light)', padding: '12px', borderRadius: '8px', background: 'var(--bg-glass)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -157,9 +161,9 @@ export default function EditProjectModal({
                           <strong style={{ display: 'block', fontSize: '0.95rem' }}>{task.name}</strong>
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Status: {task.status.replace('_', ' ')}</span>
                         </div>
-                        {hasAssignees ? (
+                        {activeAssignees.length > 0 ? (
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            Assigned to: {task.assignments.map(a => a.user?.name || 'Unknown User').join(', ')}
+                            Assigned to: {activeAssignees.map(a => a.user?.name || 'Unknown User').join(', ')}
                           </div>
                         ) : (
                           isAdminOrManager && (
@@ -171,16 +175,15 @@ export default function EditProjectModal({
                                 onChange={(e) => setAssignSelections({...assignSelections, [task.id]: e.target.value})}
                               >
                                 <option value="">Select User</option>
-                                {users.map(u => (
+                                {users.filter(u => u && u.active !== false && !u.soft_delete).map(u => (
                                   <option key={u.id} value={u.id}>{u.name}</option>
                                 ))}
                               </select>
                               <button 
                                 type="button" 
                                 className="btn btn-primary btn-sm" 
-                                style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                                onClick={() => handleAssignClick(task.id)}
-                                disabled={!assignSelections[task.id]}
+                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                onClick={() => handleAssignTask(task.id)}
                               >
                                 Assign
                               </button>

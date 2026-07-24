@@ -51,6 +51,7 @@ class ActivityActionType(Enum):
     update_task = "update_task"
     delete_task = "delete_task"
     add_prerequisite = "add_prerequisite"
+    remove_user = "remove_user"
     create_user = "create_user"
     update_user = "update_user"
     delete_user = "delete_user"
@@ -58,3 +59,9 @@ class ActivityActionType(Enum):
     change_user_privacy = "change_user_privacy"
     assign_user = "assign_user"
 
+
+class IntervalUnit(str, Enum):
+    day = "day"
+    week = "week"
+    month = "month"
+    year = "year"

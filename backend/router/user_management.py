@@ -6,8 +6,8 @@ from dependencies.authorization import (
     get_current_admin,
 )
 from schema.user import User as db_User
-from services.user_services_management import UserManagementService
-from models.user_model import UserPrivacy, CreateAssignUser, ChangeUserRole, CreateExternalCollaborator, UnassignUser
+from services.user_management import UserManagementService
+from models.user import UserPrivacy, CreateAssignUser, ChangeUserRole, CreateExternalCollaborator, UnassignUser
 from models.user_modification import ChangeStatus
 
 router_user_management = APIRouter()
@@ -104,6 +104,24 @@ async def get_all_users(
     """Get All Users"""
     all_users = await user_service.get_all_users()
     return all_users
+
+
+@router_user_management.get("/get_softdeleted_users")
+async def get_softdeleted_users(
+    user_service: Annotated[UserManagementService, Depends(get_user_service)],
+    current_user: db_User = Depends(get_current_user),
+):
+    """Get Soft-Deleted Users"""
+    return await user_service.get_softdeleted_users()
+
+
+@router_user_management.get("/get_active_users")
+async def get_active_users(
+    user_service: Annotated[UserManagementService, Depends(get_user_service)],
+    current_user: db_User = Depends(get_current_user),
+):
+    """Get Active Users"""
+    return await user_service.get_active_users()
 
 
 @router_user_management.post("/create_external_collaborator")

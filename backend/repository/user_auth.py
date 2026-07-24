@@ -4,7 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from schema.user import User as db_User
 from schema.otp import OTP as db_otp
-from models.user_model import User, UserLogin
+from models.user import User, UserLogin
 from schema.enums import Levels
 from helper_functions.hashing import check_password
 from datetime import datetime,timezone

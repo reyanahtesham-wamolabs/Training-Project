@@ -39,6 +39,7 @@ class Project(Base):
         back_populates="projects",
     )
 
+
 class Tag(Base):
     __tablename__ = "Tag"
     id: Mapped[str] = mapped_column(primary_key=True)

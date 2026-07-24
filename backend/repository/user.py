@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import inspect
 from  schema.user import User as db_User
 from  schema.assignment import Assignment as db_Assignment
-from models.user_model import UserResponse
+from models.user import UserResponse
 
 
 async def get_user_by_email(email: str, session: AsyncSession) -> db_User | None:
@@ -36,6 +36,18 @@ async def get_all_users(session: AsyncSession) -> list[db_User]:
     result = await session.execute(stmt)
     user_objs = result.scalars().all()
     return user_objs
+
+
+async def get_softdeleted_users(session: AsyncSession) -> list[db_User]:
+    stmt = select(db_User).where(db_User.soft_delete == True)
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
+async def get_active_users(session: AsyncSession) -> list[db_User]:
+    stmt = select(db_User).where(db_User.soft_delete == False, db_User.active == True)
+    result = await session.execute(stmt)
+    return result.scalars().all()
 
 
 async def save_user(user_obj: db_User, session: AsyncSession) -> db_User:

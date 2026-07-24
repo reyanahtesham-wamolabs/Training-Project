@@ -5,6 +5,7 @@ from router.team import router_team
 from router.notification import router_notification
 from router.comment import router_comment
 from router.activity import router_activity
+from router.task_reminder import router_task_reminder
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from router.user_management import router_user_management
@@ -45,3 +46,4 @@ app.include_router(router_team, prefix="/Team", tags=["Team"])
 app.include_router(router_notification, prefix="/Notification", tags=["Notification"])
 app.include_router(router_comment, prefix="/comment", tags=["Comment"])
 app.include_router(router_activity, prefix="/activity", tags=["Activity"])
+app.include_router(router_task_reminder, prefix="/TaskReminder", tags=["Task Reminder"])

@@ -15,7 +15,6 @@ class Team(Base):
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    # Assumption: one team per project. Drop `unique=True` if a project can have multiple teams.
     project_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("Project.id", ondelete="CASCADE"),

@@ -1,12 +1,12 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from repository.user_repository import get_user_by_email
+from repository.user import get_user_by_email
 from repository.team import TeamRepo
 from repository.project import ProjectRepo
-from models.team_models import TeamCreate, MessageCreate
+from models.team import TeamCreate, MessageCreate
 from schema.team import Team as db_team, TeamMember as db_team_member, Message as db_message
-from services.notification_service import NotificationService
+from services.notification import NotificationService
 
 class TeamService:
     def __init__(self, db_session: AsyncSession):
@@ -21,15 +21,18 @@ class TeamService:
         members = await TeamRepo.get_all_members_with_users(self.session)
         result = []
         for m in members:
-            result.append({
-                "id": m.id,
-                "user_id": m.user_id,
-                "team_id": m.team_id,
-                "joined_at": m.joined_at.isoformat(),
-                "name": m.user.name if m.user else None,
-                "email": m.user.email if m.user else None,
-                "project_role": str(m.project_role.value if hasattr(m.project_role, 'value') else m.project_role) if m.project_role else "project_member",
-            })
+            if m.user and getattr(m.user, 'active', True) and not getattr(m.user, 'soft_delete', False):
+                result.append({
+                    "id": m.id,
+                    "user_id": m.user_id,
+                    "team_id": m.team_id,
+                    "joined_at": m.joined_at.isoformat(),
+                    "name": m.user.name,
+                    "email": m.user.email,
+                    "project_role": str(m.project_role.value if hasattr(m.project_role, 'value') else m.project_role) if m.project_role else "project_member",
+                    "active": True,
+                    "soft_delete": False,
+                })
         return result
 
     async def get_user_teams(self, current_user) -> list[db_team]:

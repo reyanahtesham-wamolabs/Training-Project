@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from repository.notification_repository import NotificationRepo
+from repository.notification import NotificationRepo
 from schema.assignment import Assignment
 from schema.team import TeamMember
 from schema.user import User as db_user
